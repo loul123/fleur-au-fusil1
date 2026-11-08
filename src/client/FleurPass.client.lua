@@ -4,6 +4,8 @@
 
 	* Bouton « Pass » (touche B) : paliers gratuits / premium, progression en
 	  graines, achat du Pass Premium (Game Pass).
+	* Onglet Sachets : ouvrir des sachets de graines (tirage d'une fleur,
+	  probabilités affichées), en stock ou payés avec le solde de graines.
 	* Onglet Casier : aperçu 3D de l'arme, équiper skins d'arme, fleurs et
 	  animations de pétales possédés.
 	* Fenêtres « +N graines » en fin de partie et « Nouvelle récompense ».
@@ -28,7 +30,7 @@ local FONT = Enum.Font.FredokaOne
 local PANEL = Color3.fromRGB(35, 50, 30)
 local GOLD = Color3.fromRGB(255, 200, 60)
 
-local profile = { Seeds = 0, Premium = false, Owned = {}, Equipped = Cosmetics.DefaultLook() }
+local profile = { Seeds = 0, SeedBalance = 0, Packs = {}, Premium = false, Owned = {}, Equipped = Cosmetics.DefaultLook() }
 local ownedSet = {}
 local premiumPrice = nil
 
@@ -86,7 +88,10 @@ local function swatches(item, parent, size)
 	if item.Type == "WeaponSkin" then
 		colors = { item.Body, item.Accent, item.Metal }
 	elseif item.Type == "FlowerSkin" then
-		colors = { item.PetalColor, item.HeartColor }
+		colors = if item.PetalColors then { item.PetalColors[1], item.PetalColors[2], item.PetalColors[3] or item.HeartColor }
+			else { item.PetalColor, item.PetalColor2 or item.HeartColor }
+	elseif item.Type == "Pack" then
+		colors = { item.Color }
 	else
 		colors = nil
 	end
@@ -121,10 +126,14 @@ local title = label({ Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -
 local closeButton = button({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 10), Size = UDim2.fromOffset(36, 36), Text = "✕",
 	BackgroundColor3 = Color3.fromRGB(170, 60, 60) }, window)
 local tabPass = button({ Position = UDim2.fromOffset(16, 48), Size = UDim2.fromOffset(170, 32), Text = "Pass de saison" }, window)
-local tabLocker = button({ Position = UDim2.fromOffset(194, 48), Size = UDim2.fromOffset(130, 32), Text = "Casier" }, window)
+local tabPacks = button({ Position = UDim2.fromOffset(194, 48), Size = UDim2.fromOffset(130, 32), Text = "Sachets" }, window)
+local tabLocker = button({ Position = UDim2.fromOffset(332, 48), Size = UDim2.fromOffset(130, 32), Text = "Casier" }, window)
+local balanceLabel = label({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -56, 0, 50), Size = UDim2.fromOffset(300, 28), Text = "",
+	TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = Color3.fromRGB(180, 240, 140) }, window)
 
 local pagePass = make("Frame", { Position = UDim2.fromOffset(0, 88), Size = UDim2.new(1, 0, 1, -88), BackgroundTransparency = 1 }, window)
 local pageLocker = make("Frame", { Position = UDim2.fromOffset(0, 88), Size = UDim2.new(1, 0, 1, -88), BackgroundTransparency = 1, Visible = false }, window)
+local pagePacks = make("Frame", { Position = UDim2.fromOffset(0, 88), Size = UDim2.new(1, 0, 1, -88), BackgroundTransparency = 1, Visible = false }, window)
 
 ---------------------------------------------------------------------------
 -- Onglet Pass
@@ -159,11 +168,18 @@ local function rewardCard(reward, unlocked, isPremium, parent, order)
 		label({ Size = UDim2.fromScale(1, 1), Text = "—", TextColor3 = Color3.fromRGB(120, 140, 110) }, card)
 		return card
 	end
-	local item = Cosmetics.Get(reward.Type, reward.Id)
-	local rarity = Cosmetics.Rarities[item.Rarity] or Cosmetics.Rarities.Commun
+	local item
+	if reward.Type == "Pack" then
+		local pack = Cosmetics.GetPack(reward.Id)
+		item = { Type = "Pack", Name = string.format("%s ×%d", pack.Name, reward.Count or 1), Color = pack.Color,
+			Rarity = if pack.Id == "SachetDore" then "Legendaire" else "Rare" }
+	else
+		item = Cosmetics.Get(reward.Type, reward.Id)
+	end
+	local rarity = Cosmetics.Rarities[item.Rarity] or Cosmetics.Rarities.Commune
 	make("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, card)
 	make("UIListLayout", { HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, card)
-	label({ Size = UDim2.new(1, 0, 0, 14), Text = Cosmetics.TypeLabels[reward.Type], TextColor3 = Color3.fromRGB(200, 210, 190), LayoutOrder = 1 }, card)
+	label({ Size = UDim2.new(1, 0, 0, 14), Text = if reward.Type == "Pack" then "Sachet" else Cosmetics.TypeLabels[reward.Type], TextColor3 = Color3.fromRGB(200, 210, 190), LayoutOrder = 1 }, card)
 	swatches(item, card, 18).LayoutOrder = 2
 	label({ Size = UDim2.new(1, 0, 0, 34), Text = item.Name, TextWrapped = true, LayoutOrder = 3 }, card)
 	label({ Size = UDim2.new(1, 0, 0, 14), Text = rarity.Label, TextColor3 = rarity.Color, LayoutOrder = 4 }, card)
@@ -190,7 +206,7 @@ local function renderPass()
 		rewardCard(tier.Premium, done and profile.Premium, true, column, 3)
 	end
 
-	seedsLabel.Text = string.format("🌱 %d graines", seeds)
+	seedsLabel.Text = string.format("Progression : 🌱 %d graines", seeds)
 	local nextTier = BP.Tiers[reached + 1]
 	if nextTier then
 		local from = if reached > 0 then BP.Tiers[reached].Seeds else 0
@@ -209,7 +225,8 @@ local function renderPass()
 		premiumButton.Text = string.format("Débloquer le Pass Premium%s  (+%d%% graines)",
 			if premiumPrice then " — R$ " .. premiumPrice else "", math.floor(BP.PremiumSeedBonus * 100 + 0.5))
 	end
-	openButton.Text = string.format("🌱 %d  •  Pass (B)", seeds)
+	openButton.Text = string.format("🌱 %d  •  Pass (B)", profile.SeedBalance or 0)
+	balanceLabel.Text = string.format("Solde : 🌱 %d graines", profile.SeedBalance or 0)
 end
 
 premiumButton.Activated:Connect(function()
@@ -265,14 +282,15 @@ local function renderLocker()
 		for i, item in Cosmetics.List(typeName) do
 			local owned = isOwned(typeName, item.Id)
 			local equipped = profile.Equipped[typeName] == item.Id
-			local rarity = Cosmetics.Rarities[item.Rarity] or Cosmetics.Rarities.Commun
+			local rarity = Cosmetics.Rarities[item.Rarity] or Cosmetics.Rarities.Commune
 			local cell = button({ Text = "", LayoutOrder = rarity.Order * 100 + i, AutoButtonColor = owned,
 				BackgroundColor3 = if owned then Color3.fromRGB(55, 80, 45) else Color3.fromRGB(45, 45, 45) }, grid)
 			make("UIStroke", { Color = if equipped then Color3.fromRGB(140, 255, 120) else rarity.Color, Thickness = if equipped then 3 else 1,
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, cell)
 			local swatch = swatches(item, cell, 14)
 			swatch.Position = UDim2.fromOffset(0, 6)
-			label({ Position = UDim2.fromOffset(4, 24), Size = UDim2.new(1, -8, 0, 26), Text = item.Name, TextWrapped = true,
+			label({ Position = UDim2.fromOffset(4, 24), Size = UDim2.new(1, -8, 0, 26),
+				Text = if item.Number then string.format("#%d %s", item.Number, item.Name) else item.Name, TextWrapped = true,
 				TextTransparency = if owned then 0 else 0.4 }, cell)
 			label({ Position = UDim2.fromOffset(4, 52), Size = UDim2.new(1, -8, 0, 16),
 				Text = if equipped then "Équipé" elseif owned then rarity.Label else "🔒 Pass de saison",
@@ -298,15 +316,122 @@ RunService.RenderStepped:Connect(function(dt)
 end)
 
 ---------------------------------------------------------------------------
+-- Onglet Sachets (tirage d'une fleur)
+---------------------------------------------------------------------------
+local packList = make("Frame", { Position = UDim2.fromOffset(16, 0), Size = UDim2.fromOffset(470, 400), BackgroundTransparency = 1 }, pagePacks)
+make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10) }, packList)
+
+local reveal = make("Frame", { Position = UDim2.fromOffset(500, 0), Size = UDim2.new(1, -516, 1, -12), BackgroundColor3 = Color3.fromRGB(25, 35, 22) }, pagePacks)
+corner(reveal, 12)
+local revealStroke = make("UIStroke", { Color = Color3.fromRGB(110, 150, 90), Thickness = 2 }, reveal)
+local revealViewport = make("ViewportFrame", { Position = UDim2.fromOffset(10, 10), Size = UDim2.new(1, -20, 0, 200), BackgroundTransparency = 1,
+	Ambient = Color3.fromRGB(180, 180, 180), LightDirection = Vector3.new(-1, -1, -0.5) }, reveal)
+local revealCamera = make("Camera", { FieldOfView = 30 }, revealViewport)
+revealViewport.CurrentCamera = revealCamera
+revealCamera.CFrame = CFrame.lookAt(Vector3.new(6, 0.2, -3.0), Vector3.new(0, 0.05, -3.0)) -- gros plan sur la fleur (vue de profil)
+local revealName = label({ Position = UDim2.fromOffset(10, 216), Size = UDim2.new(1, -20, 0, 30), Text = "Ouvrez un sachet !" }, reveal)
+local revealRarity = label({ Position = UDim2.fromOffset(10, 248), Size = UDim2.new(1, -20, 0, 24), Text = "" }, reveal)
+local revealInfo = label({ Position = UDim2.fromOffset(10, 276), Size = UDim2.new(1, -20, 0, 40), Text = "", TextWrapped = true,
+	TextColor3 = Color3.fromRGB(210, 230, 200) }, reveal)
+local revealModel = nil
+local rolling = false
+
+local function showFlower(flowerId)
+	if revealModel then
+		revealModel:Destroy()
+	end
+	local look = table.clone(profile.Equipped)
+	look.FlowerSkin = flowerId
+	revealModel = WeaponFactory.CreatePreview(look)
+	revealModel.Parent = revealViewport
+	local flower = Cosmetics.Get("FlowerSkin", flowerId)
+	local rarity = Cosmetics.Rarities[flower.Rarity] or Cosmetics.Rarities.Commune
+	revealName.Text = string.format("#%d %s", flower.Number or 0, flower.Name)
+	revealRarity.Text = rarity.Label
+	revealRarity.TextColor3 = rarity.Color
+	revealStroke.Color = rarity.Color
+end
+
+local function oddsText(pack)
+	local lines = {}
+	for _, rarityName in Cosmetics.RarityOrder do
+		local pct = pack.Odds[rarityName]
+		if pct then
+			table.insert(lines, string.format("%s : %s %%", Cosmetics.Rarities[rarityName].Label, tostring(pct)))
+		end
+	end
+	return table.concat(lines, "\n")
+end
+
+renderPacks = function()
+	clear(packList)
+	for _, pack in Cosmetics.Packs do
+		local stock = (profile.Packs and profile.Packs[pack.Id]) or 0
+		local card = make("Frame", { Size = UDim2.fromOffset(230, 395), BackgroundColor3 = Color3.fromRGB(45, 65, 40) }, packList)
+		corner(card, 12)
+		make("UIStroke", { Color = pack.Color, Thickness = 2 }, card)
+		label({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 28), Text = pack.Name, TextColor3 = pack.Color }, card)
+		label({ Position = UDim2.fromOffset(8, 40), Size = UDim2.new(1, -16, 0, 20),
+			Text = string.format("En stock : %d   •   Prix : 🌱 %d", stock, pack.Price) }, card)
+		local odds = label({ Position = UDim2.fromOffset(12, 68), Size = UDim2.new(1, -24, 0, 250), Text = "Probabilités :\n" .. oddsText(pack),
+			TextScaled = false, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+			TextColor3 = Color3.fromRGB(215, 230, 205) }, card)
+		odds.TextWrapped = true
+		local canOpen = stock > 0 or (profile.SeedBalance or 0) >= pack.Price
+		local open = button({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -20, 0, 46),
+			Text = if stock > 0 then "Ouvrir (en stock)" else string.format("Ouvrir — 🌱 %d", pack.Price),
+			BackgroundColor3 = if canOpen then Color3.fromRGB(80, 150, 60) else Color3.fromRGB(80, 80, 80), AutoButtonColor = canOpen }, card)
+		open.Activated:Connect(function()
+			if canOpen and not rolling then
+				rolling = true
+				revealInfo.Text = "Ouverture…"
+				remotes.OpenPack:FireServer(pack.Id)
+				task.delay(5, function()
+					rolling = false -- sécurité si le serveur ne répond pas
+				end)
+			end
+		end)
+	end
+end
+
+remotes:WaitForChild("PackResult").OnClientEvent:Connect(function(result)
+	if result.Error then
+		rolling = false
+		revealInfo.Text = result.Error
+		return
+	end
+	-- petite animation : défilement de fleurs avant la vraie
+	local pool = Cosmetics.List("FlowerSkin")
+	for i = 1, 14 do
+		showFlower(pool[math.random(1, #pool)].Id)
+		task.wait(0.05 + i * 0.012)
+	end
+	showFlower(result.FlowerId)
+	revealInfo.Text = if result.Duplicate then string.format("Doublon : +%d graines remboursées", result.Refund) else "Nouvelle fleur ajoutée au casier !"
+	rolling = false
+	if pagePacks.Visible then
+		renderPacks()
+	end
+end)
+
+---------------------------------------------------------------------------
 -- Navigation
 ---------------------------------------------------------------------------
+local renderPacks -- défini plus bas
+local currentTab = "Pass"
+
 local function showTab(name)
+	currentTab = name
 	pagePass.Visible = name == "Pass"
+	pagePacks.Visible = name == "Packs"
 	pageLocker.Visible = name == "Locker"
-	tabPass.BackgroundColor3 = if name == "Pass" then Color3.fromRGB(110, 170, 80) else Color3.fromRGB(70, 100, 55)
-	tabLocker.BackgroundColor3 = if name == "Locker" then Color3.fromRGB(110, 170, 80) else Color3.fromRGB(70, 100, 55)
+	for tabName, b in { Pass = tabPass, Packs = tabPacks, Locker = tabLocker } do
+		b.BackgroundColor3 = if name == tabName then Color3.fromRGB(110, 170, 80) else Color3.fromRGB(70, 100, 55)
+	end
 	if name == "Pass" then
 		renderPass()
+	elseif name == "Packs" then
+		renderPacks()
 	else
 		renderLocker()
 	end
@@ -315,7 +440,7 @@ end
 local function toggle(open)
 	window.Visible = if open == nil then not window.Visible else open
 	if window.Visible then
-		showTab(if pageLocker.Visible then "Locker" else "Pass")
+		showTab(currentTab)
 	end
 end
 
@@ -327,6 +452,9 @@ closeButton.Activated:Connect(function()
 end)
 tabPass.Activated:Connect(function()
 	showTab("Pass")
+end)
+tabPacks.Activated:Connect(function()
+	showTab("Packs")
 end)
 tabLocker.Activated:Connect(function()
 	showTab("Locker")
@@ -380,7 +508,7 @@ remotes:WaitForChild("Unlocked").OnClientEvent:Connect(function(items, message)
 		toast({ message }, GOLD, 6)
 	end
 	for _, item in items or {} do
-		local rarity = Cosmetics.Rarities[item.Rarity] or Cosmetics.Rarities.Commun
+		local rarity = Cosmetics.Rarities[item.Rarity] or Cosmetics.Rarities.Commune
 		toast({ "Nouvelle récompense !", string.format("%s : %s (%s)", Cosmetics.TypeLabels[item.Type] or "", item.Name, rarity.Label) }, rarity.Color, 8)
 	end
 end)
@@ -395,6 +523,8 @@ remotes:WaitForChild("Profile").OnClientEvent:Connect(function(data)
 	renderPass()
 	if window.Visible and pageLocker.Visible then
 		renderLocker()
+	elseif window.Visible and pagePacks.Visible then
+		renderPacks()
 	end
 end)
 

@@ -225,24 +225,42 @@ Config.BattlePass = {
 		MaxPerMatch = 250,
 	},
 
-	-- Paliers : graines cumulées dans la saison → récompenses.
-	-- ⚠ Récompenses D'EXEMPLE : remplacez-les par les vôtres.
-	-- Type = "WeaponSkin" | "FlowerSkin" | "PetalEffect", Id = un Id de Cosmetics.lua.
+	-- Paliers : graines cumulées dans la saison (progression, jamais dépensées) → récompenses.
+	-- Type = "FlowerSkin" | "WeaponSkin" | "PetalEffect" (Id de Cosmetics.lua)
+	--      ou "Pack" (Id = "Sachet" / "SachetDore", Count = nombre de sachets).
 	-- Free = piste gratuite, Premium = piste payante (nil = rien à ce palier).
+	-- Les fleurs Mythique, Divin, Secret, Transcendant et Ultime ne s'obtiennent qu'en sachet.
 	Tiers = {
-		{ Seeds = 100, Free = { Type = "PetalEffect", Id = "Traine" }, Premium = { Type = "WeaponSkin", Id = "Potager" } },
-		{ Seeds = 250, Free = nil, Premium = { Type = "FlowerSkin", Id = "Coquelicot" } },
-		{ Seeds = 450, Free = { Type = "FlowerSkin", Id = "Bleuet" }, Premium = { Type = "PetalEffect", Id = "Etincelles" } },
-		{ Seeds = 700, Free = nil, Premium = { Type = "WeaponSkin", Id = "NuitBleue" } },
-		{ Seeds = 1000, Free = { Type = "WeaponSkin", Id = "Potager" }, Premium = { Type = "FlowerSkin", Id = "Sakura" } },
-		{ Seeds = 1400, Free = nil, Premium = { Type = "PetalEffect", Id = "Tourbillon" } },
-		{ Seeds = 1900, Free = { Type = "PetalEffect", Id = "Etincelles" }, Premium = { Type = "WeaponSkin", Id = "OrRose" } },
-		{ Seeds = 2500, Free = nil, Premium = { Type = "FlowerSkin", Id = "Tournesol" } },
-		{ Seeds = 3200, Free = { Type = "FlowerSkin", Id = "Coquelicot" }, Premium = { Type = "PetalEffect", Id = "Coeurs" } },
-		{ Seeds = 4000, Free = nil, Premium = { Type = "WeaponSkin", Id = "CoquelicotRoyal" } },
-		{ Seeds = 5000, Free = { Type = "WeaponSkin", Id = "NuitBleue" }, Premium = { Type = "FlowerSkin", Id = "LotusCeleste" } },
-		{ Seeds = 6500, Free = nil, Premium = { Type = "WeaponSkin", Id = "JardinNeon" } },
-		{ Seeds = 8000, Free = { Type = "PetalEffect", Id = "Tourbillon" }, Premium = { Type = "PetalEffect", Id = "ArcEnCiel" } },
+		{ Seeds = 60, Free = { Type = "FlowerSkin", Id = "MargueritonJaune" }, Premium = { Type = "FlowerSkin", Id = "PetuniaRose" } }, -- 1 : Margueriton Jaune / Petunia Rose
+		{ Seeds = 130, Free = { Type = "FlowerSkin", Id = "Pissenlit" }, Premium = { Type = "FlowerSkin", Id = "PetuniaViolet" } }, -- 2 : Dandelion / Pissenlit / Petunia Violet
+		{ Seeds = 220, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "FlowerSkin", Id = "LavandeSauvage" } }, -- 3 : Sachet / Lavande Sauvage
+		{ Seeds = 330, Free = { Type = "FlowerSkin", Id = "TrefleATroisFeuilles" }, Premium = { Type = "FlowerSkin", Id = "HortensiaBleu" } }, -- 4 : Trèfle à Trois Feuilles / Hortensia Bleu
+		{ Seeds = 450, Free = { Type = "FlowerSkin", Id = "TulipeRouge" }, Premium = { Type = "Pack", Id = "SachetDore", Count = 1 } }, -- 5 : Tulipe Rouge / SachetDore
+		{ Seeds = 590, Free = { Type = "PetalEffect", Id = "Traine" }, Premium = { Type = "FlowerSkin", Id = "HortensiaRose" } }, -- 6 : Traine / Hortensia Rose
+		{ Seeds = 740, Free = { Type = "FlowerSkin", Id = "TulipeJaune" }, Premium = { Type = "FlowerSkin", Id = "HibiscusRouge" } }, -- 7 : Tulipe Jaune / Hibiscus Rouge
+		{ Seeds = 910, Free = { Type = "FlowerSkin", Id = "TulipeRose" }, Premium = { Type = "FlowerSkin", Id = "HibiscusJaune" } }, -- 8 : Tulipe Rose / Hibiscus Jaune
+		{ Seeds = 1100, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "FlowerSkin", Id = "LysBlanc" } }, -- 9 : Sachet / Lys Blanc
+		{ Seeds = 1300, Free = { Type = "FlowerSkin", Id = "PenseeBleue" }, Premium = { Type = "WeaponSkin", Id = "NuitBleue" } }, -- 10 : Pensée Bleue / NuitBleue
+		{ Seeds = 1520, Free = { Type = "FlowerSkin", Id = "PenseeViolette" }, Premium = { Type = "FlowerSkin", Id = "LysRose" } }, -- 11 : Pensée Violette / Lys Rose
+		{ Seeds = 1750, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "PetalEffect", Id = "Tourbillon" } }, -- 12 : Sachet / Tourbillon
+		{ Seeds = 2000, Free = { Type = "FlowerSkin", Id = "RoseSauvage" }, Premium = { Type = "FlowerSkin", Id = "PivoineRose" } }, -- 13 : Rose Sauvage / Pivoine Rose
+		{ Seeds = 2270, Free = { Type = "FlowerSkin", Id = "OeilletDesPres" }, Premium = { Type = "FlowerSkin", Id = "MagnoliaBlanc" } }, -- 14 : Œillet des Prés / Magnolia Blanc
+		{ Seeds = 2550, Free = { Type = "WeaponSkin", Id = "Potager" }, Premium = { Type = "Pack", Id = "SachetDore", Count = 1 } }, -- 15 : Potager / SachetDore
+		{ Seeds = 2850, Free = { Type = "FlowerSkin", Id = "BoutonDOr" }, Premium = { Type = "FlowerSkin", Id = "OrchideeRose" } }, -- 16 : Bouton d'Or / Orchidée Rose
+		{ Seeds = 3160, Free = { Type = "FlowerSkin", Id = "CoquelicotDesChamps" }, Premium = { Type = "FlowerSkin", Id = "OrchideeBlanche" } }, -- 17 : Coquelicot des Champs / Orchidée Blanche
+		{ Seeds = 3490, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "WeaponSkin", Id = "OrRose" } }, -- 18 : Sachet / OrRose
+		{ Seeds = 3840, Free = { Type = "FlowerSkin", Id = "PrimevereDePrintemps" }, Premium = { Type = "FlowerSkin", Id = "OrchideeViolette" } }, -- 19 : Primevère de Printemps / Orchidée Violette
+		{ Seeds = 4200, Free = { Type = "PetalEffect", Id = "Etincelles" }, Premium = { Type = "PetalEffect", Id = "Coeurs" } }, -- 20 : Etincelles / Coeurs
+		{ Seeds = 4580, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "FlowerSkin", Id = "RoseNoire" } }, -- 21 : Sachet / Rose Noire
+		{ Seeds = 4970, Free = { Type = "FlowerSkin", Id = "VioletteDesBois" }, Premium = { Type = "WeaponSkin", Id = "CoquelicotRoyal" } }, -- 22 : Violette des Bois / CoquelicotRoyal
+		{ Seeds = 5380, Free = { Type = "FlowerSkin", Id = "PaqueretteRose" }, Premium = { Type = "FlowerSkin", Id = "RoseDOrnement" } }, -- 23 : Pâquerette Rose / Rose d'Ornement
+		{ Seeds = 5810, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "FlowerSkin", Id = "FleurDeGivre" } }, -- 24 : Sachet / Fleur de Givre
+		{ Seeds = 6250, Free = { Type = "FlowerSkin", Id = "BleuetSauvage" }, Premium = { Type = "Pack", Id = "SachetDore", Count = 1 } }, -- 25 : Bleuet Sauvage / SachetDore
+		{ Seeds = 6710, Free = { Type = "FlowerSkin", Id = "MyosotisDEau" }, Premium = { Type = "FlowerSkin", Id = "LotusDArgent" } }, -- 26 : Myosotis d'Eau / Lotus d'Argent
+		{ Seeds = 7180, Free = { Type = "Pack", Id = "Sachet", Count = 1 }, Premium = { Type = "FlowerSkin", Id = "RoseDEmeraude" } }, -- 27 : Sachet / Rose d'Émeraude
+		{ Seeds = 7670, Free = { Type = "FlowerSkin", Id = "LilasBlanc" }, Premium = { Type = "PetalEffect", Id = "ArcEnCiel" } }, -- 28 : Lilas Blanc / ArcEnCiel
+		{ Seeds = 8180, Free = { Type = "FlowerSkin", Id = "GerberaDesJardins" }, Premium = { Type = "FlowerSkin", Id = "FleurDeCrepuscule" } }, -- 29 : Gerbera des Jardins / Fleur de Crépuscule
+		{ Seeds = 8700, Free = { Type = "Pack", Id = "SachetDore", Count = 1 }, Premium = { Type = "WeaponSkin", Id = "JardinNeon" } }, -- 30 : SachetDore / JardinNeon
 	},
 }
 

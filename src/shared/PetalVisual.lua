@@ -135,7 +135,7 @@ function PetalVisual.Spawn(origin, velocity, flowerId, effectId, ignoreModel)
 	end
 	local flower = Cosmetics.Get("FlowerSkin", flowerId)
 	local effect = Cosmetics.Get("PetalEffect", effectId)
-	local color = flower.PetalColor
+	local color = if flower.PetalColors then flower.PetalColors[math.random(1, #flower.PetalColors)] else flower.PetalColor
 	local scale = effect.Size or 1
 
 	local petal = fxPart(Vector3.new(0.8, 0.15, 1.1) * scale, color, CFrame.lookAt(origin, origin + velocity))

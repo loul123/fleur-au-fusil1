@@ -7,6 +7,9 @@
 	* Les graines (gagnées en fin de partie selon les stats) font monter les
 	  paliers : récompenses gratuites pour tous, premium si le joueur possède
 	  le Game Pass (rétroactif si acheté en cours de saison).
+	* Sachets de graines : tirage d'une fleur selon les probabilités de
+	  Cosmetics.Packs ; payés avec le solde de graines ou donnés par le pass.
+	  Doublon = remboursement en graines.
 	* Équipement des cosmétiques (vérifié : seulement les objets possédés).
 	Sans accès DataStore (Studio sans « Enable Studio Access to API Services »),
 	le profil fonctionne pour la session mais n'est pas sauvegardé.
@@ -56,8 +59,11 @@ local function defaultProfile()
 	return {
 		Version = 1,
 		Season = BP.Season,
-		Seeds = 0, -- graines de la saison en cours (progression du pass)
+		Seeds = 0, -- graines de la saison en cours (progression du pass, jamais dépensées)
 		TotalSeeds = 0, -- toutes saisons confondues
+		SeedBalance = 0, -- solde dépensable (sachets)
+		Packs = {}, -- [PackId] = nombre de sachets non ouverts
+		Claimed = {}, -- paliers déjà récompensés cette saison ("F3", "P3"…)
 		Owned = owned,
 		Equipped = Cosmetics.DefaultLook(),
 	}
@@ -71,6 +77,21 @@ local function reconcile(data)
 	profile.Seeds = tonumber(data.Seeds) or 0
 	profile.TotalSeeds = tonumber(data.TotalSeeds) or profile.Seeds
 	profile.Season = tonumber(data.Season) or BP.Season
+	profile.SeedBalance = tonumber(data.SeedBalance) or 0
+	if type(data.Packs) == "table" then
+		for id, n in data.Packs do
+			if Cosmetics.GetPack(id) and tonumber(n) then
+				profile.Packs[id] = math.max(0, math.floor(tonumber(n)))
+			end
+		end
+	end
+	if type(data.Claimed) == "table" then
+		for key, v in data.Claimed do
+			if v then
+				profile.Claimed[key] = true
+			end
+		end
+	end
 	if type(data.Owned) == "table" then
 		for key, v in data.Owned do
 			if v then
@@ -89,6 +110,7 @@ local function reconcile(data)
 	if profile.Season ~= BP.Season then -- nouvelle saison : progression remise à zéro
 		profile.Season = BP.Season
 		profile.Seeds = 0
+		profile.Claimed = {}
 	end
 	return profile
 end
@@ -138,7 +160,17 @@ local function grantRewards(player)
 	end
 	local newItems = {}
 	local function give(reward)
-		if reward and Cosmetics.Exists(reward.Type, reward.Id) then
+		if not reward then
+			return
+		end
+		if reward.Type == "Pack" then
+			local pack = Cosmetics.GetPack(reward.Id)
+			if pack then
+				local count = reward.Count or 1
+				profile.Packs[pack.Id] = (profile.Packs[pack.Id] or 0) + count
+				table.insert(newItems, { Type = "Pack", Id = pack.Id, Name = string.format("%s ×%d", pack.Name, count), Rarity = "Rare" })
+			end
+		elseif Cosmetics.Exists(reward.Type, reward.Id) then
 			local key = Cosmetics.Key(reward.Type, reward.Id)
 			if not profile.Owned[key] then
 				profile.Owned[key] = true
@@ -147,10 +179,14 @@ local function grantRewards(player)
 			end
 		end
 	end
-	for _, tier in BP.Tiers do
+	for i, tier in BP.Tiers do
 		if profile.Seeds >= tier.Seeds then
-			give(tier.Free)
-			if premium[player] then
+			if not profile.Claimed["F" .. i] then
+				profile.Claimed["F" .. i] = true
+				give(tier.Free)
+			end
+			if premium[player] and not profile.Claimed["P" .. i] then
+				profile.Claimed["P" .. i] = true
 				give(tier.Premium)
 			end
 		end
@@ -171,6 +207,8 @@ local function sendProfile(player)
 		Seeds = profile.Seeds,
 		TotalSeeds = profile.TotalSeeds,
 		Season = profile.Season,
+		SeedBalance = profile.SeedBalance,
+		Packs = profile.Packs,
 		Premium = premium[player] == true,
 		Owned = owned,
 		Equipped = profile.Equipped,
@@ -198,6 +236,7 @@ function BattlePassService.AwardSeeds(player, amount, breakdown, context)
 	local before = BattlePassService.GetTierIndex(profile.Seeds)
 	profile.Seeds += amount
 	profile.TotalSeeds += amount
+	profile.SeedBalance += amount
 	local after = BattlePassService.GetTierIndex(profile.Seeds)
 	local items = grantRewards(player)
 	remotes.SeedsAwarded:FireClient(player, {
@@ -309,6 +348,56 @@ function BattlePassService.Init(remoteTable, lookChangedCallback)
 		if onLookChanged then
 			onLookChanged(player, BattlePassService.GetLook(player))
 		end
+	end)
+
+	-- Ouvrir un sachet : utilise un sachet en stock, sinon paie avec le solde de graines
+	local lastOpen = {}
+	local rng = Random.new()
+	remotes.OpenPack.OnServerEvent:Connect(function(player, packId)
+		local profile = profiles[player]
+		local pack = type(packId) == "string" and Cosmetics.GetPack(packId)
+		if not profile or not pack then
+			return
+		end
+		local now = os.clock()
+		if lastOpen[player] and now - lastOpen[player] < 1 then
+			return -- anti-spam
+		end
+		local fromStock = (profile.Packs[pack.Id] or 0) > 0
+		if fromStock then
+			profile.Packs[pack.Id] -= 1
+		elseif profile.SeedBalance >= pack.Price then
+			profile.SeedBalance -= pack.Price
+		else
+			remotes.PackResult:FireClient(player, { Error = "Pas assez de graines !" })
+			return
+		end
+		lastOpen[player] = now
+
+		local flower = Cosmetics.RollPack(pack, rng)
+		local key = Cosmetics.Key("FlowerSkin", flower.Id)
+		local duplicate = profile.Owned[key] == true
+		local refund = 0
+		if duplicate then
+			refund = (Cosmetics.Rarities[flower.Rarity] or Cosmetics.Rarities.Commune).Refund
+			profile.SeedBalance += refund
+		else
+			profile.Owned[key] = true
+		end
+		remotes.PackResult:FireClient(player, {
+			PackId = pack.Id,
+			FlowerId = flower.Id,
+			Duplicate = duplicate,
+			Refund = refund,
+		})
+		sendProfile(player)
+		local rarity = Cosmetics.Rarities[flower.Rarity]
+		if rarity and rarity.Order >= 6 then -- Mythique et plus : annonce à tout le serveur
+			remotes.Unlocked:FireAllClients({}, string.format("🌸 %s a obtenu %s (%s) !", player.DisplayName, flower.Name, rarity.Label))
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		lastOpen[player] = nil
 	end)
 
 	-- Achat du pass premium

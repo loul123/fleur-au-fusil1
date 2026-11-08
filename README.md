@@ -86,6 +86,35 @@ Fusil d'assaut stylisé construit par code : crosse, carcasse, lunette, chargeur
 1. créez l'objet dans `src/shared/Cosmetics.lua` (skin d'arme : couleurs Body/Accent/Metal/Dark + matériau ; fleur : couleur des pétales/cœur/tige, nombre et forme des pétales ; animation de pétales : traînée, étincelles, orbite, impact `Burst`/`Hearts`/`Rain`) ;
 2. référencez son `Id` dans un palier : `{ Seeds = 1000, Free = { Type = "FlowerSkin", Id = "MonId" }, Premium = { ... } }`.
 
+### Les 100 fleurs
+Toutes les fleurs (#100 Marguerite Blanche → #1 La Fleur de l'Infini) sont dans `Cosmetics.FlowerSkins`. Chaque fleur a ses couleurs, son nombre et sa forme de pétales ; les plus rares ont plusieurs couronnes, des matériaux spéciaux (verre, glace, néon, métal, lave, champ de force), une aura de particules et une lumière. La Marguerite Blanche est la fleur de départ. Les pétales tirés prennent la couleur de la fleur équipée.
+
+| Rareté | Fleurs | Sachet de graines | Sachet doré | Doublon remboursé |
+|---|---|---|---|---|
+| Commune | #100–81 | 55 % | — | 10 |
+| Peu commune | #80–61 | 25 % | — | 20 |
+| Rare | #60–41 | 12 % | 70 % | 40 |
+| Épique | #40–26 | 5 % | 20 % | 80 |
+| Légendaire | #25–16 | 2 % | 7 % | 150 |
+| Mythique | #15–10 | 0,7 % | 2,2 % | 300 |
+| Divin | #9–6 | 0,2 % | 0,6 % | 600 |
+| Secret | #5–3 | 0,08 % | 0,15 % | 1 200 |
+| Secret / Transcendant | #2 | 0,019 % | 0,049 % | 2 500 |
+| Ultime | #1 | **0,001 %** | **0,001 %** | 5 000 |
+
+Dans une rareté, chaque fleur a la même chance.
+
+### Deux compteurs de graines
+- **Progression du pass** : toutes les graines gagnées ; elle ne baisse jamais et débloque les paliers.
+- **Solde** : les mêmes graines, plus les remboursements de doublons ; on le dépense pour ouvrir des sachets (150 pour un sachet, 600 pour un sachet doré).
+
+### Ce que donne le pass (30 paliers, 60 → 8 700 graines)
+- **Piste gratuite** : les 19 fleurs communes (la Marguerite Blanche est déjà possédée), 7 sachets, 1 sachet doré, le skin d'arme Camouflage Potager, 2 animations de pétales.
+- **Piste premium** : 10 fleurs peu communes, 6 rares, 3 épiques, la Fleur de Crépuscule (légendaire), 3 sachets dorés, 4 skins d'arme, 3 animations.
+- **Mythique, Divin, Secret, Transcendant et Ultime** ne s'obtiennent qu'en sachet. Quand quelqu'un tire une fleur Mythique ou plus, tout le serveur est prévenu.
+
+Pour réorganiser : modifiez `Config.BattlePass.Tiers` (`Type = "FlowerSkin"` + Id de la fleur, ou `Type = "Pack", Id = "Sachet"`/`"SachetDore"`, `Count = n`). Probabilités et prix des sachets : `Cosmetics.Packs`.
+
 ### Rendre le pass payant
 1. Publiez le jeu, puis sur create.roblox.com › votre expérience › **Monétisation › Passes**, créez un pass « Pass Premium — Saison 1 » et fixez son prix.
 2. Copiez son ID dans `Config.BattlePass.GamePassId`.
@@ -97,6 +126,7 @@ Profils enregistrés en DataStore (`FleurAuFusil_Profils_v1`) : graines, objets 
 
 ### Interface
 - **B** ou bouton « 🌱 Pass » : piste gratuite en haut, premium en bas, progression vers le prochain palier, bouton d'achat.
+- Onglet **Sachets** : stock, prix, probabilités par rareté, bouton d'ouverture et révélation animée de la fleur en 3D.
 - Onglet **Casier** : aperçu 3D tournant de l'arme, et tous les objets (possédés ou 🔒) ; cliquez pour équiper un skin d'arme, une fleur ou une animation de pétales. Les autres joueurs voient votre arme et vos pétales.
 - Fin de partie : fenêtre « +N graines » avec le détail, puis une notification pour chaque nouvelle récompense.
 - Les bots portent des skins au hasard (vitrine des récompenses).

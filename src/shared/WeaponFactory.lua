@@ -104,6 +104,26 @@ local function addPart(handle, name, role, size, cframe, shape, ellipsoid)
 	return p
 end
 
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+	ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 60)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 220, 90)),
+	ColorSequenceKeypoint.new(0.75, Color3.fromRGB(70, 140, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+})
+
+-- Couleur d'un pétale (couronne `ring`, position `index`)
+function WeaponFactory.PetalColor(flower, ring, index)
+	if flower.PetalColors then
+		local list = flower.PetalColors
+		return list[(index + ring) % #list + 1]
+	end
+	if ring > 0 then
+		return flower.PetalColor2 or flower.PetalColor:Lerp(Color3.new(1, 1, 1), 0.25 * ring)
+	end
+	return flower.PetalColor
+end
+
 local function buildFlower(handle, flower)
 	-- tige + deux feuilles entre le cache-flamme et la fleur
 	addPart(handle, "Tige", "Stem", Vector3.new(0.65, 0.07, 0.07), at(0, Y, -3.13) * CYL_Z, Enum.PartType.Cylinder)
@@ -112,14 +132,43 @@ local function buildFlower(handle, flower)
 
 	-- fleur vue de profil (comme sur le modèle) : pétales dans le plan YZ
 	local heartSize = 0.48 * (flower.HeartScale or 1)
-	addPart(handle, "Coeur", "Heart", Vector3.new(0.22, heartSize, heartSize), FLOWER, nil, true)
+	local heart = addPart(handle, "Coeur", "Heart", Vector3.new(0.22, heartSize, heartSize), FLOWER, nil, true)
 	local count = flower.Petals or 12
-	local length = 0.5 * (flower.PetalLength or 1)
-	local width = math.min(0.24 * (flower.PetalWidth or 1), 0.6)
-	local radius = heartSize / 2 + length / 2 - 0.05
-	for i = 0, count - 1 do
-		addPart(handle, "Petal", "Petal", Vector3.new(0.06, length, width),
-			FLOWER * rx(i * 360 / count) * at(0, radius, 0), nil, true)
+	local layers = math.clamp(flower.Layers or 1, 1, 3)
+	for ring = 0, layers - 1 do
+		local scale = 1 - 0.28 * ring
+		local length = 0.5 * (flower.PetalLength or 1) * scale
+		local width = math.min(0.24 * (flower.PetalWidth or 1), 0.6) * scale
+		local radius = heartSize / 2 + length / 2 - 0.05
+		local offset = if ring % 2 == 1 then 180 / count else 0 -- couronnes décalées
+		for i = 0, count - 1 do
+			local petal = addPart(handle, "Petal", "Petal", Vector3.new(0.06 + 0.03 * ring, length, width),
+				FLOWER * rx(i * 360 / count + offset) * at(0, radius, 0), nil, true)
+			petal:SetAttribute("Ring", ring)
+			petal:SetAttribute("Index", i)
+		end
+	end
+
+	-- aura de particules et lumière pour les fleurs rares
+	if flower.Aura or flower.AuraRainbow then
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Name = "Aura"
+		emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		emitter.Rate = 10
+		emitter.Lifetime = NumberRange.new(0.5, 0.9)
+		emitter.Speed = NumberRange.new(0.3, 0.8)
+		emitter.SpreadAngle = Vector2.new(180, 180)
+		emitter.Size = NumberSequence.new(0.25, 0)
+		emitter.LightEmission = 1
+		emitter.Color = if flower.AuraRainbow then RAINBOW else ColorSequence.new(flower.Aura)
+		emitter.Parent = heart
+	end
+	if flower.Light then
+		local light = Instance.new("PointLight")
+		light.Range = 5
+		light.Brightness = 1.2
+		light.Color = flower.Aura or flower.HeartColor
+		light.Parent = heart
 	end
 end
 
@@ -136,7 +185,7 @@ function WeaponFactory.ApplyLook(root, look)
 		Lens = { Color3.fromRGB(90, 190, 255), Enum.Material.Glass },
 		Stem = { flower.StemColor, Enum.Material.SmoothPlastic },
 		Heart = { flower.HeartColor, material(flower.HeartMaterial, Enum.Material.SmoothPlastic) },
-		Petal = { flower.PetalColor, Enum.Material.SmoothPlastic },
+		Petal = { flower.PetalColor, material(flower.PetalMaterial, Enum.Material.SmoothPlastic) },
 	}
 	local parts = root:GetDescendants()
 	if root:IsA("BasePart") then
@@ -148,6 +197,9 @@ function WeaponFactory.ApplyLook(root, look)
 			if entry then
 				p.Color = entry[1]
 				p.Material = entry[2]
+				if p:GetAttribute("Role") == "Petal" then
+					p.Color = WeaponFactory.PetalColor(flower, p:GetAttribute("Ring") or 0, p:GetAttribute("Index") or 0)
+				end
 			end
 		end
 	end
