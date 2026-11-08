@@ -20,6 +20,7 @@ local player = Players.LocalPlayer
 local shared = ReplicatedStorage:WaitForChild("FleurShared")
 local Config = require(shared:WaitForChild("Config"))
 local PetalVisual = require(shared:WaitForChild("PetalVisual"))
+local Cosmetics = require(shared:WaitForChild("Cosmetics"))
 
 local remotes = ReplicatedStorage:WaitForChild(Config.RemotesFolderName)
 local FireRequest = remotes:WaitForChild("FireRequest")
@@ -173,7 +174,7 @@ local function fire()
 
 	for _ = 1, tier.Petals do
 		local velocity = Config.ApplySpread(direction, tier.Spread, rng) * tier.Speed
-		PetalVisual.Spawn(origin, velocity, tier.PetalColor, character)
+		PetalVisual.Spawn(origin, velocity, player:GetAttribute("FleurFlower"), player:GetAttribute("FleurEffect"), character)
 	end
 	FireRequest:FireServer(origin, direction)
 	playSound(Config.Sounds.Shoot, 0.35)
@@ -241,7 +242,7 @@ RunService.RenderStepped:Connect(function()
 	local tier = getTier()
 	local progress = math.clamp((os.clock() - lastFire) / tier.Cooldown, 0, 1)
 	cooldownFill.Size = UDim2.fromScale(progress, 1)
-	heart.BackgroundColor3 = tier.HeartColor
+	heart.BackgroundColor3 = Cosmetics.Get("FlowerSkin", player:GetAttribute("FleurFlower")).HeartColor
 	crosshair.Rotation = (1 - progress) * 45
 
 	if holding then
@@ -268,14 +269,13 @@ local function findModel(id)
 	return nil
 end
 
-PetalFired.OnClientEvent:Connect(function(shooterId, origin, velocities, tierIndex)
+PetalFired.OnClientEvent:Connect(function(shooterId, origin, velocities, _tierIndex, flowerId, effectId)
 	if shooterId == myId then
 		return -- déjà affiché localement
 	end
-	local tier = Config.GetTier(tierIndex)
 	local model = findModel(shooterId)
 	for _, v in velocities do
-		PetalVisual.Spawn(origin, v, tier.PetalColor, model)
+		PetalVisual.Spawn(origin, v, flowerId, effectId, model)
 	end
 end)
 

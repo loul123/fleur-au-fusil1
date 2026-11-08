@@ -8,18 +8,21 @@ Jeu de tir multijoueur Roblox (avec bots) dans **11 potagers géants** (vote de 
 default.project.json                 → projet Rojo (optionnel)
 src/shared/   (ReplicatedStorage > FleurShared)
   Config.lua          ModuleScript  – tous les réglages (armes, modes, score, bots)
-  PetalVisual.lua     ModuleScript  – rendu client des pétales
+  PetalVisual.lua     ModuleScript  – rendu client des pétales et de leurs animations
+  Cosmetics.lua       ModuleScript  – catalogue des skins d'arme, fleurs, animations de pétales
+  WeaponFactory.lua   ModuleScript  – construit le fusil à fleur (Tool + aperçu 3D)
 src/server/   (ServerScriptService > FleurServer)
   GameManager.server.lua  Script    – boucle de jeu, modes, manches, joueurs, remotes
   Modules/
     MapBuilder.lua        ModuleScript – génère les 11 potagers (thèmes) + spawns
     ParticipantService.lua ModuleScript – joueurs/bots, touches, pénalités, score
     CombatService.lua     ModuleScript – tirs, cadence, projectiles, dégâts (autorité serveur)
-    WeaponFactory.lua     ModuleScript – construit l'arme « FleurAuFusil »
+    BattlePassService.lua ModuleScript – pass de saison, graines, casier, sauvegarde, Game Pass
     BotService.lua        ModuleScript – IA des bots
 src/client/   (StarterPlayer > StarterPlayerScripts > FleurClient)
   FleurWeapon.client.lua  LocalScript – tir, viseur, recharge, hitmarker
-  FleurHUD.client.lua     LocalScript – chrono, scores, classement, résultats
+  FleurHUD.client.lua     LocalScript – chrono, scores, classement, résultats, vote de carte
+  FleurPass.client.lua    LocalScript – fenêtre du pass, casier avec aperçu 3D, notifications de graines
 ```
 
 L'arme, la carte, les équipes et les RemoteEvents sont **créés par code** : aucun modèle à importer.
@@ -34,17 +37,22 @@ L'arme, la carte, les équipes et les RemoteEvents sont **créés par code** : a
    | ReplicatedStorage | Folder | `FleurShared` | — |
    | ReplicatedStorage › FleurShared | ModuleScript | `Config` | `src/shared/Config.lua` |
    | ReplicatedStorage › FleurShared | ModuleScript | `PetalVisual` | `src/shared/PetalVisual.lua` |
+   | ReplicatedStorage › FleurShared | ModuleScript | `Cosmetics` | `src/shared/Cosmetics.lua` |
+   | ReplicatedStorage › FleurShared | ModuleScript | `WeaponFactory` | `src/shared/WeaponFactory.lua` |
    | ServerScriptService | Folder | `FleurServer` | — |
    | ServerScriptService › FleurServer | **Script** | `GameManager` | `src/server/GameManager.server.lua` |
    | ServerScriptService › FleurServer | Folder | `Modules` | — |
    | … › FleurServer › Modules | ModuleScript | `MapBuilder` | `src/server/Modules/MapBuilder.lua` |
    | … › FleurServer › Modules | ModuleScript | `ParticipantService` | `src/server/Modules/ParticipantService.lua` |
    | … › FleurServer › Modules | ModuleScript | `CombatService` | `src/server/Modules/CombatService.lua` |
-   | … › FleurServer › Modules | ModuleScript | `WeaponFactory` | `src/server/Modules/WeaponFactory.lua` |
+   | … › FleurServer › Modules | ModuleScript | `BattlePassService` | `src/server/Modules/BattlePassService.lua` |
    | … › FleurServer › Modules | ModuleScript | `BotService` | `src/server/Modules/BotService.lua` |
    | StarterPlayer › StarterPlayerScripts | Folder | `FleurClient` | — |
    | … › FleurClient | **LocalScript** | `FleurWeapon` | `src/client/FleurWeapon.client.lua` |
    | … › FleurClient | **LocalScript** | `FleurHUD` | `src/client/FleurHUD.client.lua` |
+   | … › FleurClient | **LocalScript** | `FleurPass` | `src/client/FleurPass.client.lua` |
+
+   ⚠ Si vous aviez installé une version précédente : `WeaponFactory` a **déménagé** de `ServerScriptService › FleurServer › Modules` vers `ReplicatedStorage › FleurShared` (supprimez l'ancien).
 
    Les noms doivent être identiques (les scripts se trouvent par `WaitForChild`).
 3. **Game Settings › Avatar** : choisissez **R15** (recommandé ; les bots sont en R15).
@@ -59,10 +67,44 @@ rojo serve        # puis « Connect » dans le plugin Rojo de Studio
 rojo build -o LaFleurAuFusil.rbxlx
 ```
 
+## L'arme
+Fusil d'assaut stylisé construit par code : crosse, carcasse, lunette, chargeur courbe, garde-main ajouré, poignée verticale, guidon et cache-flamme, avec une **marguerite au bout du canon** (tige, deux feuilles, cœur jaune, pétales blancs vus de profil). Skin par défaut « Classique » orange/jaune/gris. Les pétales partent du cœur de la fleur. Taille globale : `SCALE` dans `WeaponFactory.lua`.
+
+## Pass de saison (battle pass)
+
+### Graines 🌱
+À la fin de chaque partie, chaque joueur gagne des graines selon ses statistiques (`Config.BattlePass.Seeds`) :
+- Victoire : +40 (équipe gagnante en mode équipe, vainqueur en chacun pour soi / Gun Game)
+- +1 par touche, +1 pour 20 points de score final, +10 par point de ratio (max +30), MVP +15
+- En cas de défaite : 30 % du total (`LoserShare`, mettez 0 pour réserver les graines aux gagnants)
+- Pass Premium : +20 % (`PremiumSeedBonus`) ; plafond 250 par partie ; un joueur inactif (0 touche donnée/reçue) ne gagne rien.
+
+### Paliers et récompenses
+`Config.BattlePass.Tiers` : chaque palier demande un total de graines dans la saison et donne une récompense **gratuite** (`Free`) et/ou **premium** (`Premium`). Les récompenses sont attribuées automatiquement ; si le Pass Premium est acheté en cours de saison, les récompenses premium des paliers déjà atteints sont données immédiatement.
+
+⚠ Les récompenses actuelles sont des **exemples**. Pour mettre les vôtres :
+1. créez l'objet dans `src/shared/Cosmetics.lua` (skin d'arme : couleurs Body/Accent/Metal/Dark + matériau ; fleur : couleur des pétales/cœur/tige, nombre et forme des pétales ; animation de pétales : traînée, étincelles, orbite, impact `Burst`/`Hearts`/`Rain`) ;
+2. référencez son `Id` dans un palier : `{ Seeds = 1000, Free = { Type = "FlowerSkin", Id = "MonId" }, Premium = { ... } }`.
+
+### Rendre le pass payant
+1. Publiez le jeu, puis sur create.roblox.com › votre expérience › **Monétisation › Passes**, créez un pass « Pass Premium — Saison 1 » et fixez son prix.
+2. Copiez son ID dans `Config.BattlePass.GamePassId`.
+3. Le bouton « Débloquer le Pass Premium » ouvre l'achat Roblox (prix affiché automatiquement). Sans ID, dans Studio, ce bouton débloque le premium gratuitement pour tester (`StudioFreePremium`).
+4. Nouvelle saison : changez `Season`, `SeasonName`, les paliers et créez un nouveau Game Pass. Les graines repartent à zéro, les objets gagnés sont conservés.
+
+### Sauvegarde
+Profils enregistrés en DataStore (`FleurAuFusil_Profils_v1`) : graines, objets possédés, tenue équipée. Pour tester dans Studio : **Game Settings › Security › Enable Studio Access to API Services**. Sans cela, tout fonctionne mais rien n'est sauvegardé (le titre du pass affiche « non sauvegardé »).
+
+### Interface
+- **B** ou bouton « 🌱 Pass » : piste gratuite en haut, premium en bas, progression vers le prochain palier, bouton d'achat.
+- Onglet **Casier** : aperçu 3D tournant de l'arme, et tous les objets (possédés ou 🔒) ; cliquez pour équiper un skin d'arme, une fleur ou une animation de pétales. Les autres joueurs voient votre arme et vos pétales.
+- Fin de partie : fenêtre « +N graines » avec le détail, puis une notification pour chaque nouvelle récompense.
+- Les bots portent des skins au hasard (vitrine des récompenses).
+
 ## Comment jouer
 
 - **Clic gauche** (ou tap) : tirer un pétale ; **maintenir** = tir continu à la cadence de la fleur.
-- **Tab** : agrandir le classement.
+- **Tab** : agrandir le classement. **B** : pass de saison et casier.
 - L'arme est équipée automatiquement à chaque apparition.
 
 ## Règles

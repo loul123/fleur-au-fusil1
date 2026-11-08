@@ -20,7 +20,8 @@ local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("FleurShared"):WaitForChild("Config"))
-local WeaponFactory = require(script.Parent:WaitForChild("WeaponFactory"))
+local WeaponFactory = require(ReplicatedStorage:WaitForChild("FleurShared"):WaitForChild("WeaponFactory"))
+local Cosmetics = require(ReplicatedStorage:WaitForChild("FleurShared"):WaitForChild("Cosmetics"))
 
 local BotService = {}
 BotService.Active = false -- les bots ne bougent / tirent que pendant une manche
@@ -192,7 +193,7 @@ local function spawnBot(p)
 	forceField.Parent = model
 	Debris:AddItem(forceField, Config.Combat.SpawnProtection)
 
-	local tool = WeaponFactory.Create(p.Tier)
+	local tool = WeaponFactory.Create(p.Tier, p.Look)
 	tool.Parent = model
 	pcall(function()
 		humanoid:EquipTool(tool)
@@ -226,6 +227,7 @@ function BotService.AddBot()
 	local base = BC.Names[(nameCursor - 1) % #BC.Names + 1]
 	local suffix = if nameCursor > #BC.Names then " " .. tostring(math.ceil(nameCursor / #BC.Names)) else ""
 	local p = PS.AddBot(base .. suffix)
+	p.Look = Cosmetics.RandomLook(rng) -- les bots exhibent des skins variés
 	if hooks.OnCreated then
 		hooks.OnCreated(p)
 	end
@@ -253,7 +255,7 @@ function BotService.UpdateTier(p)
 	if p.Model then
 		local tool = p.Model:FindFirstChild(Config.ToolName)
 		if tool then
-			WeaponFactory.Recolor(tool, p.Tier)
+			WeaponFactory.SetTier(tool, p.Tier, p.Look)
 		end
 	end
 end

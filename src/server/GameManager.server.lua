@@ -19,7 +19,8 @@ local Modules = script.Parent:WaitForChild("Modules")
 local MapBuilder = require(Modules:WaitForChild("MapBuilder"))
 local ParticipantService = require(Modules:WaitForChild("ParticipantService"))
 local CombatService = require(Modules:WaitForChild("CombatService"))
-local WeaponFactory = require(Modules:WaitForChild("WeaponFactory"))
+local WeaponFactory = require(ReplicatedStorage:WaitForChild("FleurShared"):WaitForChild("WeaponFactory"))
+local BattlePassService = require(Modules:WaitForChild("BattlePassService"))
 local BotService = require(Modules:WaitForChild("BotService"))
 
 local PS = ParticipantService
@@ -31,7 +32,7 @@ local remotesFolder = Instance.new("Folder")
 remotesFolder.Name = Config.RemotesFolderName
 
 local remotes = {}
-for _, name in { "FireRequest", "PetalFired", "HitConfirm", "HitTaken", "KillFeed", "GameState", "Scoreboard", "Announce", "MatchResults", "MapVote" } do
+for _, name in { "FireRequest", "PetalFired", "HitConfirm", "HitTaken", "KillFeed", "GameState", "Scoreboard", "Announce", "MatchResults", "MapVote", "Profile", "Unlocked", "SeedsAwarded", "EquipCosmetic", "BuyPremium" } do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotesFolder
@@ -225,7 +226,7 @@ local function setTier(p, tier)
 	elseif p.Player then
 		local tool = (p.Model and p.Model:FindFirstChild(Config.ToolName)) or p.Player.Backpack:FindFirstChild(Config.ToolName)
 		if tool then
-			WeaponFactory.Recolor(tool, tier)
+			WeaponFactory.SetTier(tool, tier, p.Look)
 		end
 	end
 end
@@ -311,7 +312,7 @@ local function onCharacterAdded(player, character)
 			old:Destroy()
 		end
 	end
-	local tool = WeaponFactory.Create(p.Tier)
+	local tool = WeaponFactory.Create(p.Tier, p.Look)
 	tool.Parent = player.Backpack
 	task.defer(function()
 		if humanoid.Health > 0 and tool.Parent == player.Backpack then
@@ -322,8 +323,48 @@ local function onCharacterAdded(player, character)
 	task.defer(addTeamMarker, character, if currentMode.Teams then p.Team else nil)
 end
 
+---------------------------------------------------------------------------
+-- Cosmétiques (skins d'arme / fleur, animation des pétales)
+---------------------------------------------------------------------------
+local function applyLook(player, look)
+	local p = PS.GetByPlayer(player)
+	if not p then
+		return -- le participant prendra la tenue chargée à sa création
+	end
+	p.Look = look
+	player:SetAttribute("FleurWeaponSkin", look.WeaponSkin)
+	player:SetAttribute("FleurFlower", look.FlowerSkin)
+	player:SetAttribute("FleurEffect", look.PetalEffect)
+
+	-- remplace l'arme actuelle par une arme au nouveau skin
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local equipped = character and character:FindFirstChild(Config.ToolName)
+	local stored = player.Backpack:FindFirstChild(Config.ToolName)
+	if not equipped and not stored then
+		return
+	end
+	if equipped then
+		equipped:Destroy()
+	end
+	if stored then
+		stored:Destroy()
+	end
+	local tool = WeaponFactory.Create(p.Tier, look)
+	tool.Parent = player.Backpack
+	if equipped and humanoid and humanoid.Health > 0 then
+		humanoid:EquipTool(tool)
+	end
+end
+
+BattlePassService.Init(remotes, applyLook)
+
 local function onPlayerAdded(player)
 	local p = PS.AddPlayer(player)
+	p.Look = BattlePassService.GetLook(player)
+	player:SetAttribute("FleurWeaponSkin", p.Look.WeaponSkin)
+	player:SetAttribute("FleurFlower", p.Look.FlowerSkin)
+	player:SetAttribute("FleurEffect", p.Look.PetalEffect)
 	applyTeam(p, if currentMode.Teams then smallestTeam() else nil)
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)
@@ -541,21 +582,47 @@ local function buildResults()
 		results.TeamTotals = totals
 		if bestKey and not tie then
 			results.WinnerLabel = state.RoundsWon[bestKey].Label
+			results.WinnerKey = bestKey
 		else
 			local a, b = Config.Teams[1].Name, Config.Teams[2].Name
 			if totals[a].Score ~= totals[b].Score then
-				results.WinnerLabel = "Les " .. (if totals[a].Score > totals[b].Score then a else b)
+				results.WinnerKey = if totals[a].Score > totals[b].Score then a else b
+				results.WinnerLabel = "Les " .. results.WinnerKey
 			end
 		end
 	else
 		if bestKey and not tie then
 			results.WinnerLabel = state.RoundsWon[bestKey].Label
+			results.WinnerKey = bestKey
 		elseif rows[1] then
 			results.WinnerLabel = rows[1].Name
+			results.WinnerKey = rows[1].Id
 		end
 	end
 	results.MVP = rows[1] and rows[1].Name or "—"
+	results.MVPId = rows[1] and rows[1].Id
 	return results
+end
+
+-- Graines de fin de partie, selon les statistiques et la victoire
+local function awardSeeds(results)
+	for _, p in PS.Humans() do
+		local player = p.Player
+		if player and player.Parent then
+			local final, ratio = Config.ComputeScore(p.Hits, p.Taken)
+			local won = results.WinnerKey ~= nil
+				and ((currentMode.Teams and p.Team == results.WinnerKey) or p.Id == results.WinnerKey)
+			local amount, lines = Config.ComputeSeeds({
+				Won = won,
+				Hits = p.Hits,
+				Taken = p.Taken,
+				FinalScore = final,
+				Ratio = ratio,
+				IsMVP = results.MVPId == p.Id,
+			}, BattlePassService.HasPremium(player))
+			BattlePassService.AwardSeeds(player, amount, lines, { Won = won })
+		end
+	end
 end
 
 local function runMatch(modeKey)
@@ -652,6 +719,7 @@ local function runMatch(modeKey)
 
 	local results = buildResults()
 	remotes.MatchResults:FireAllClients(results)
+	awardSeeds(results)
 	announce("Victoire : " .. results.WinnerLabel, 5)
 	setPhase("MatchEnd", Config.ResultsTime)
 	task.wait(Config.ResultsTime)

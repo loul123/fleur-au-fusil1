@@ -11,6 +11,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("FleurShared"):WaitForChild("Config"))
+local Cosmetics = require(ReplicatedStorage:WaitForChild("FleurShared"):WaitForChild("Cosmetics"))
 
 local ParticipantService = {}
 
@@ -44,6 +45,7 @@ local function newParticipant(id, name, isBot)
 		Tier = Config.DefaultTier,
 		LastFire = 0,
 		Alive = false,
+		Look = Cosmetics.DefaultLook(), -- { WeaponSkin, FlowerSkin, PetalEffect }
 	}
 end
 

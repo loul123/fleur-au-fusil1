@@ -200,6 +200,90 @@ Config.Bots = {
 }
 
 ---------------------------------------------------------------------------
+-- Pass de saison (battle pass) & graines
+---------------------------------------------------------------------------
+Config.BattlePass = {
+	Season = 1, -- changer ce numéro remet la progression (graines) à zéro ; les objets gagnés restent
+	SeasonName = "Saison 1 — Printemps au potager",
+
+	-- Pass Premium payant = un Game Pass Roblox. Créez-le sur create.roblox.com
+	-- (votre expérience > Monétisation > Passes) et collez son ID ici.
+	-- Conseil : un nouveau Game Pass par saison.
+	GamePassId = 0,
+	StudioFreePremium = true, -- si GamePassId = 0 : dans Studio, le bouton d'achat débloque le premium (test)
+	PremiumSeedBonus = 0.2, -- +20 % de graines avec le pass premium
+
+	-- Graines gagnées en fin de partie (en fonction des statistiques)
+	Seeds = {
+		WinBase = 40, -- bonus de victoire
+		PerHit = 1, -- par touche donnée
+		ScorePerSeed = 20, -- 1 graine pour 20 points de score final
+		RatioBonusPerPoint = 10, -- par point de ratio touches/reçues…
+		RatioBonusMax = 30, -- …plafonné
+		MVPBonus = 15, -- meilleur score de la partie
+		LoserShare = 0.3, -- part reçue en cas de défaite (0 = seuls les gagnants gagnent des graines)
+		MaxPerMatch = 250,
+	},
+
+	-- Paliers : graines cumulées dans la saison → récompenses.
+	-- ⚠ Récompenses D'EXEMPLE : remplacez-les par les vôtres.
+	-- Type = "WeaponSkin" | "FlowerSkin" | "PetalEffect", Id = un Id de Cosmetics.lua.
+	-- Free = piste gratuite, Premium = piste payante (nil = rien à ce palier).
+	Tiers = {
+		{ Seeds = 100, Free = { Type = "PetalEffect", Id = "Traine" }, Premium = { Type = "WeaponSkin", Id = "Potager" } },
+		{ Seeds = 250, Free = nil, Premium = { Type = "FlowerSkin", Id = "Coquelicot" } },
+		{ Seeds = 450, Free = { Type = "FlowerSkin", Id = "Bleuet" }, Premium = { Type = "PetalEffect", Id = "Etincelles" } },
+		{ Seeds = 700, Free = nil, Premium = { Type = "WeaponSkin", Id = "NuitBleue" } },
+		{ Seeds = 1000, Free = { Type = "WeaponSkin", Id = "Potager" }, Premium = { Type = "FlowerSkin", Id = "Sakura" } },
+		{ Seeds = 1400, Free = nil, Premium = { Type = "PetalEffect", Id = "Tourbillon" } },
+		{ Seeds = 1900, Free = { Type = "PetalEffect", Id = "Etincelles" }, Premium = { Type = "WeaponSkin", Id = "OrRose" } },
+		{ Seeds = 2500, Free = nil, Premium = { Type = "FlowerSkin", Id = "Tournesol" } },
+		{ Seeds = 3200, Free = { Type = "FlowerSkin", Id = "Coquelicot" }, Premium = { Type = "PetalEffect", Id = "Coeurs" } },
+		{ Seeds = 4000, Free = nil, Premium = { Type = "WeaponSkin", Id = "CoquelicotRoyal" } },
+		{ Seeds = 5000, Free = { Type = "WeaponSkin", Id = "NuitBleue" }, Premium = { Type = "FlowerSkin", Id = "LotusCeleste" } },
+		{ Seeds = 6500, Free = nil, Premium = { Type = "WeaponSkin", Id = "JardinNeon" } },
+		{ Seeds = 8000, Free = { Type = "PetalEffect", Id = "Tourbillon" }, Premium = { Type = "PetalEffect", Id = "ArcEnCiel" } },
+	},
+}
+
+-- Graines d'une partie. stats = { Won, Hits, Taken, FinalScore, Ratio, IsMVP }
+function Config.ComputeSeeds(stats, hasPremium)
+	local s = Config.BattlePass.Seeds
+	local lines = {}
+	local function add(label, amount)
+		amount = math.floor(amount + 0.5)
+		if amount > 0 then
+			table.insert(lines, { Label = label, Amount = amount })
+		end
+		return amount
+	end
+	if stats.Hits == 0 and stats.Taken == 0 then
+		return 0, lines -- inactif : rien
+	end
+	local total = 0
+	if stats.Won then
+		total += add("Victoire", s.WinBase)
+	end
+	total += add("Touches", stats.Hits * s.PerHit)
+	total += add("Score", math.max(0, stats.FinalScore) / s.ScorePerSeed)
+	total += add("Ratio", math.min(s.RatioBonusMax, stats.Ratio * s.RatioBonusPerPoint))
+	if stats.IsMVP then
+		total += add("MVP", s.MVPBonus)
+	end
+	if not stats.Won then
+		local before = total
+		total = math.floor(total * s.LoserShare + 0.5)
+		table.insert(lines, { Label = string.format("Défaite (×%.1f)", s.LoserShare), Amount = total - before })
+	end
+	if hasPremium and total > 0 then
+		local bonus = math.floor(total * Config.BattlePass.PremiumSeedBonus + 0.5)
+		total += add("Bonus Premium", bonus)
+	end
+	total = math.min(total, s.MaxPerMatch)
+	return total, lines
+end
+
+---------------------------------------------------------------------------
 -- Sons (remplaçables par vos propres assets)
 ---------------------------------------------------------------------------
 Config.Sounds = {

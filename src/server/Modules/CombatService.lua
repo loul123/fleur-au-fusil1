@@ -101,7 +101,7 @@ function CombatService.TryFire(p, origin, direction)
 			Damage = tier.Damage,
 		})
 	end
-	remotes.PetalFired:FireAllClients(p.Id, origin, velocities, p.Tier)
+	remotes.PetalFired:FireAllClients(p.Id, origin, velocities, p.Tier, p.Look.FlowerSkin, p.Look.PetalEffect)
 	return true
 end
 
