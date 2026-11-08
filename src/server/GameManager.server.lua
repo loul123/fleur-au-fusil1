@@ -32,7 +32,7 @@ local remotesFolder = Instance.new("Folder")
 remotesFolder.Name = Config.RemotesFolderName
 
 local remotes = {}
-for _, name in { "FireRequest", "PetalFired", "HitConfirm", "HitTaken", "KillFeed", "GameState", "Scoreboard", "Announce", "MatchResults", "MapVote", "Profile", "Unlocked", "SeedsAwarded", "EquipCosmetic", "BuyPremium", "OpenPack", "PackResult" } do
+for _, name in { "FireRequest", "PetalFired", "HitConfirm", "HitTaken", "KillFeed", "GameState", "Scoreboard", "Announce", "MatchResults", "MapVote", "Profile", "Unlocked", "SeedsAwarded", "EquipCosmetic", "BuyPremium", "OpenPack", "PackResult", "BuyProduct" } do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotesFolder

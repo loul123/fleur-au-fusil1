@@ -121,6 +121,30 @@ Pour réorganiser : modifiez `Config.BattlePass.Tiers` (`Type = "FlowerSkin"` + 
 3. Le bouton « Débloquer le Pass Premium » ouvre l'achat Roblox (prix affiché automatiquement). Sans ID, dans Studio, ce bouton débloque le premium gratuitement pour tester (`StudioFreePremium`).
 4. Nouvelle saison : changez `Season`, `SeasonName`, les paliers et créez un nouveau Game Pass. Les graines repartent à zéro, les objets gagnés sont conservés.
 
+### Boutique Robux
+Deux choses se paient en Robux :
+
+| Achat | Type Roblox | Où configurer |
+|---|---|---|
+| Pass Premium de la saison | **Game Pass** (achat unique) | `Config.BattlePass.GamePassId` |
+| Sachet de graines ×1 / ×5 | **Developer Product** (achat répétable) | `Config.Shop.Products` (`Sachet1`, `Sachet5`) |
+| Sachet doré ×1 / ×5 | **Developer Product** | `Config.Shop.Products` (`SachetDore1`, `SachetDore5`) |
+
+Mise en place :
+1. Publiez le jeu puis, sur create.roblox.com › votre expérience › **Monétisation** :
+   - **Passes** : créez « Pass Premium — Saison 1 », fixez le prix, copiez l'ID dans `GamePassId` ;
+   - **Produits pour développeurs** : créez les 4 produits (ex. « Sachet de graines ×1 », « ×5 », « Sachet doré ×1 », « ×5 »), fixez les prix, copiez chaque ID dans le `ProductId` correspondant.
+2. Les prix affichés en jeu sont lus automatiquement chez Roblox.
+3. Les sachets achetés vont dans le stock du joueur (onglet Sachets) ; il les ouvre quand il veut.
+
+Sécurité des achats :
+- `ProcessReceipt` mémorise chaque reçu : un achat n'est jamais crédité deux fois ;
+- le profil est sauvegardé tout de suite, et si la sauvegarde échoue, l'achat est annulé et Roblox le renverra plus tard (le joueur ne perd rien) ;
+- les probabilités sont affichées à côté des boutons d'achat (règle Roblox pour les objets aléatoires payants) ;
+- les joueurs des pays où les objets aléatoires payants sont interdits (`PolicyService`) ne voient pas les boutons Robux des sachets et ne peuvent pas les acheter ; ils peuvent toujours les ouvrir avec des graines.
+
+Test dans Studio : tant que les ID valent 0, l'achat du pass et des sachets est simulé gratuitement (`StudioFreePremium`, `StudioFreeProducts`). Les vrais achats ne sont possibles que sur le jeu publié (dans Studio, Roblox simule les achats sans débiter).
+
 ### Sauvegarde
 Profils enregistrés en DataStore (`FleurAuFusil_Profils_v1`) : graines, objets possédés, tenue équipée. Pour tester dans Studio : **Game Settings › Security › Enable Studio Access to API Services**. Sans cela, tout fonctionne mais rien n'est sauvegardé (le titre du pass affiche « non sauvegardé »).
 

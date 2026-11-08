@@ -264,6 +264,40 @@ Config.BattlePass = {
 	},
 }
 
+---------------------------------------------------------------------------
+-- Boutique Robux : sachets de graines (Developer Products)
+-- Créez chaque produit sur create.roblox.com > votre expérience >
+-- Monétisation > Produits pour développeurs, fixez le prix, collez l'ID.
+-- Le prix affiché en jeu est lu automatiquement chez Roblox.
+---------------------------------------------------------------------------
+Config.Shop = {
+	StudioFreeProducts = true, -- si ProductId = 0 : dans Studio, l'achat est simulé (gratuit, pour tester)
+	Products = {
+		{ Key = "Sachet1", PackId = "Sachet", Count = 1, ProductId = 0, Label = "×1" },
+		{ Key = "Sachet5", PackId = "Sachet", Count = 5, ProductId = 0, Label = "×5" },
+		{ Key = "SachetDore1", PackId = "SachetDore", Count = 1, ProductId = 0, Label = "×1" },
+		{ Key = "SachetDore5", PackId = "SachetDore", Count = 5, ProductId = 0, Label = "×5" },
+	},
+}
+
+function Config.GetProduct(key)
+	for _, product in Config.Shop.Products do
+		if product.Key == key then
+			return product
+		end
+	end
+	return nil
+end
+
+function Config.GetProductById(productId)
+	for _, product in Config.Shop.Products do
+		if product.ProductId ~= 0 and product.ProductId == productId then
+			return product
+		end
+	end
+	return nil
+end
+
 -- Graines d'une partie. stats = { Won, Hits, Taken, FinalScore, Ratio, IsMVP }
 function Config.ComputeSeeds(stats, hasPremium)
 	local s = Config.BattlePass.Seeds

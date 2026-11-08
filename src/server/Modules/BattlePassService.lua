@@ -10,6 +10,10 @@
 	* Sachets de graines : tirage d'une fleur selon les probabilités de
 	  Cosmetics.Packs ; payés avec le solde de graines ou donnés par le pass.
 	  Doublon = remboursement en graines.
+	* Boutique Robux : sachets vendus en Developer Products (ProcessReceipt,
+	  reçus mémorisés pour ne jamais créditer deux fois, sauvegarde immédiate).
+	  Bloquée pour les joueurs dont le pays interdit les objets aléatoires
+	  payants (PolicyService.ArePaidRandomItemsRestricted).
 	* Équipement des cosmétiques (vérifié : seulement les objets possédés).
 	Sans accès DataStore (Studio sans « Enable Studio Access to API Services »),
 	le profil fonctionne pour la session mais n'est pas sauvegardé.
@@ -17,6 +21,7 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local PolicyService = game:GetService("PolicyService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -47,6 +52,7 @@ local onLookChanged
 local profiles = {} -- [Player] = profil
 local premium = {} -- [Player] = bool
 local canSave = {} -- [Player] = bool (faux si le chargement a échoué : on n'écrase pas les données)
+local randomRestricted = {} -- [Player] = bool (objets aléatoires payants interdits)
 
 ---------------------------------------------------------------------------
 -- Profil
@@ -64,6 +70,7 @@ local function defaultProfile()
 		SeedBalance = 0, -- solde dépensable (sachets)
 		Packs = {}, -- [PackId] = nombre de sachets non ouverts
 		Claimed = {}, -- paliers déjà récompensés cette saison ("F3", "P3"…)
+		Receipts = {}, -- derniers achats Robux traités (PurchaseId)
 		Owned = owned,
 		Equipped = Cosmetics.DefaultLook(),
 	}
@@ -82,6 +89,13 @@ local function reconcile(data)
 		for id, n in data.Packs do
 			if Cosmetics.GetPack(id) and tonumber(n) then
 				profile.Packs[id] = math.max(0, math.floor(tonumber(n)))
+			end
+		end
+	end
+	if type(data.Receipts) == "table" then
+		for _, id in data.Receipts do
+			if type(id) == "string" then
+				table.insert(profile.Receipts, id)
 			end
 		end
 	end
@@ -119,10 +133,11 @@ local function keyFor(player)
 	return "Joueur_" .. player.UserId
 end
 
+-- Renvoie true si la sauvegarde a réussi
 local function save(player)
 	local profile = profiles[player]
 	if not store or not profile or not canSave[player] then
-		return
+		return false
 	end
 	local ok, err = pcall(function()
 		store:UpdateAsync(keyFor(player), function()
@@ -132,6 +147,7 @@ local function save(player)
 	if not ok then
 		warn("[FleurPass] Sauvegarde échouée pour " .. player.Name .. " : " .. tostring(err))
 	end
+	return ok
 end
 
 ---------------------------------------------------------------------------
@@ -213,6 +229,7 @@ local function sendProfile(player)
 		Owned = owned,
 		Equipped = profile.Equipped,
 		Saved = store ~= nil and canSave[player] == true,
+		PaidRandomRestricted = randomRestricted[player] == true,
 	})
 end
 
@@ -295,6 +312,11 @@ local function loadPlayer(player)
 		end)
 		premium[player] = owns
 	end
+	local okPolicy, policy = pcall(function()
+		return PolicyService:GetPolicyInfoForPlayerAsync(player)
+	end)
+	-- en cas d'erreur on bloque par prudence (sauf dans Studio)
+	randomRestricted[player] = if okPolicy and policy then policy.ArePaidRandomItemsRestricted == true else not RunService:IsStudio()
 	grantRewards(player) -- au cas où les paliers ont changé
 	sendProfile(player)
 	if onLookChanged then
@@ -398,7 +420,72 @@ function BattlePassService.Init(remoteTable, lookChangedCallback)
 	end)
 	Players.PlayerRemoving:Connect(function(player)
 		lastOpen[player] = nil
+		randomRestricted[player] = nil
 	end)
+
+	-----------------------------------------------------------------------
+	-- Boutique Robux : sachets (Developer Products)
+	-----------------------------------------------------------------------
+	local function grantProduct(player, product)
+		local profile = profiles[player]
+		profile.Packs[product.PackId] = (profile.Packs[product.PackId] or 0) + product.Count
+		local pack = Cosmetics.GetPack(product.PackId)
+		remotes.Unlocked:FireClient(player, {}, string.format("Merci ! %s ×%d ajouté(s) 🌸", pack.Name, product.Count))
+		sendProfile(player)
+	end
+
+	remotes.BuyProduct.OnServerEvent:Connect(function(player, key)
+		local product = type(key) == "string" and Config.GetProduct(key)
+		if not product or not profiles[player] then
+			return
+		end
+		if randomRestricted[player] then
+			remotes.Unlocked:FireClient(player, {}, "Les sachets payants ne sont pas disponibles dans votre pays.")
+			return
+		end
+		if product.ProductId ~= 0 then
+			MarketplaceService:PromptProductPurchase(player, product.ProductId)
+		elseif RunService:IsStudio() and Config.Shop.StudioFreeProducts then
+			grantProduct(player, product) -- achat simulé (test Studio)
+		else
+			remotes.Unlocked:FireClient(player, {}, "Produit indisponible : ProductId non configuré.")
+		end
+	end)
+
+	MarketplaceService.ProcessReceipt = function(receipt)
+		local player = Players:GetPlayerByUserId(receipt.PlayerId)
+		local product = Config.GetProductById(receipt.ProductId)
+		if not product then
+			return Enum.ProductPurchaseDecision.NotProcessedYet -- produit inconnu de ce serveur
+		end
+		local profile = player and profiles[player]
+		if not profile then
+			return Enum.ProductPurchaseDecision.NotProcessedYet -- Roblox réessaiera au prochain passage
+		end
+		if table.find(profile.Receipts, receipt.PurchaseId) then
+			return Enum.ProductPurchaseDecision.PurchaseGranted -- déjà crédité
+		end
+		if store and not canSave[player] then
+			return Enum.ProductPurchaseDecision.NotProcessedYet -- profil non fiable : on ne crédite pas
+		end
+
+		table.insert(profile.Receipts, receipt.PurchaseId)
+		while #profile.Receipts > 50 do
+			table.remove(profile.Receipts, 1)
+		end
+		profile.Packs[product.PackId] = (profile.Packs[product.PackId] or 0) + product.Count
+
+		if store and not save(player) then
+			-- échec de sauvegarde : on annule, Roblox renverra le reçu plus tard
+			profile.Packs[product.PackId] -= product.Count
+			table.remove(profile.Receipts, table.find(profile.Receipts, receipt.PurchaseId))
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		local pack = Cosmetics.GetPack(product.PackId)
+		remotes.Unlocked:FireClient(player, {}, string.format("Merci ! %s ×%d ajouté(s) 🌸", pack.Name, product.Count))
+		sendProfile(player)
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
 
 	-- Achat du pass premium
 	remotes.BuyPremium.OnServerEvent:Connect(function(player)

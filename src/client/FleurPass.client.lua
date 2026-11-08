@@ -33,6 +33,7 @@ local GOLD = Color3.fromRGB(255, 200, 60)
 local profile = { Seeds = 0, SeedBalance = 0, Packs = {}, Premium = false, Owned = {}, Equipped = Cosmetics.DefaultLook() }
 local ownedSet = {}
 local premiumPrice = nil
+local productPrices = {} -- [Key] = prix en Robux
 
 ---------------------------------------------------------------------------
 -- Aides UI
@@ -373,10 +374,35 @@ renderPacks = function()
 		label({ Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 28), Text = pack.Name, TextColor3 = pack.Color }, card)
 		label({ Position = UDim2.fromOffset(8, 40), Size = UDim2.new(1, -16, 0, 20),
 			Text = string.format("En stock : %d   •   Prix : 🌱 %d", stock, pack.Price) }, card)
-		local odds = label({ Position = UDim2.fromOffset(12, 68), Size = UDim2.new(1, -24, 0, 250), Text = "Probabilités :\n" .. oddsText(pack),
+		local odds = label({ Position = UDim2.fromOffset(12, 66), Size = UDim2.new(1, -24, 0, 175), Text = "Probabilités :\n" .. oddsText(pack),
 			TextScaled = false, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
 			TextColor3 = Color3.fromRGB(215, 230, 205) }, card)
 		odds.TextWrapped = true
+
+		-- Achat en Robux (Developer Products)
+		local products = {}
+		for _, product in Config.Shop.Products do
+			if product.PackId == pack.Id then
+				table.insert(products, product)
+			end
+		end
+		if profile.PaidRandomRestricted then
+			label({ Position = UDim2.fromOffset(10, 250), Size = UDim2.new(1, -20, 0, 34), Text = "Achat en Robux indisponible dans votre pays",
+				TextWrapped = true, TextColor3 = Color3.fromRGB(220, 200, 180) }, card)
+		elseif #products > 0 then
+			label({ Position = UDim2.fromOffset(10, 246), Size = UDim2.new(1, -20, 0, 18), Text = "Acheter avec des Robux :", TextColor3 = GOLD }, card)
+			local width = math.floor((210 - 6 * (#products - 1)) / #products)
+			for i, product in products do
+				local price = productPrices[product.Key]
+				local buy = button({ Position = UDim2.fromOffset(10 + (i - 1) * (width + 6), 268), Size = UDim2.fromOffset(width, 50),
+					Text = string.format("%s\n%s", product.Label, if price then "R$ " .. price elseif product.ProductId == 0 then "R$ (test)" else "R$ …"),
+					BackgroundColor3 = Color3.fromRGB(0, 140, 70) }, card)
+				make("UIStroke", { Color = GOLD, Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, buy)
+				buy.Activated:Connect(function()
+					remotes.BuyProduct:FireServer(product.Key)
+				end)
+			end
+		end
 		local canOpen = stock > 0 or (profile.SeedBalance or 0) >= pack.Price
 		local open = button({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -20, 0, 46),
 			Text = if stock > 0 then "Ouvrir (en stock)" else string.format("Ouvrir — 🌱 %d", pack.Price),
@@ -524,6 +550,22 @@ remotes:WaitForChild("Profile").OnClientEvent:Connect(function(data)
 	if window.Visible and pageLocker.Visible then
 		renderLocker()
 	elseif window.Visible and pagePacks.Visible then
+		renderPacks()
+	end
+end)
+
+task.spawn(function()
+	for _, product in Config.Shop.Products do
+		if product.ProductId ~= 0 then
+			local ok, info = pcall(function()
+				return MarketplaceService:GetProductInfo(product.ProductId, Enum.InfoType.Product)
+			end)
+			if ok and info and info.PriceInRobux then
+				productPrices[product.Key] = info.PriceInRobux
+			end
+		end
+	end
+	if window.Visible and pagePacks.Visible then
 		renderPacks()
 	end
 end)
