@@ -24,6 +24,39 @@ Config.Map = {
 }
 
 ---------------------------------------------------------------------------
+-- Cartes : 10 potagers à thème + 1 « multi » (tous les légumes)
+-- L'Id doit correspondre à un thème défini dans MapBuilder (THEMES).
+---------------------------------------------------------------------------
+Config.Maps = {
+	{ Id = "Tomates", Name = "Le Rang des Tomates", Description = "Plants de tomates géants sur tuteurs, à midi." },
+	{ Id = "Ail", Name = "Le Champ d'Ail", Description = "Têtes d'ail et longues tiges, dans la lumière du matin." },
+	{ Id = "Carottes", Name = "Le Carré de Carottes", Description = "Des fanes partout : idéal pour se cacher." },
+	{ Id = "Citrouilles", Name = "Le Champ de Citrouilles", Description = "Énormes citrouilles au crépuscule, gare à l'épouvantail." },
+	{ Id = "Salades", Name = "Le Jardin des Salades", Description = "Laitues et radis sous un ciel couvert." },
+	{ Id = "Fraises", Name = "Le Fraisier", Description = "Fraises géantes sur un lit de paille." },
+	{ Id = "Mais", Name = "Le Labyrinthe de Maïs", Description = "Des tiges de maïs très hautes forment un dédale." },
+	{ Id = "Choux", Name = "Le Potager de Choux", Description = "Choux verts et rouges dans la brume du matin." },
+	{ Id = "Piments", Name = "Le Coin des Piments", Description = "Poivrons et piments sous un soleil brûlant." },
+	{ Id = "Tournesols", Name = "Le Champ de Tournesols", Description = "Tournesols gigantesques en fin d'après-midi." },
+	{ Id = "Multi", Name = "Le Grand Potager", Description = "Un peu de tout : tous les légumes réunis." },
+}
+
+Config.MapSelection = {
+	Mode = "Vote", -- "Vote" (les joueurs votent), "Rotation" (dans l'ordre) ou "Random"
+	Choices = 3, -- nombre de cartes proposées au vote
+	StartMap = "Multi", -- carte chargée au démarrage du serveur
+}
+
+function Config.GetMap(id)
+	for _, m in Config.Maps do
+		if m.Id == id then
+			return m
+		end
+	end
+	return nil
+end
+
+---------------------------------------------------------------------------
 -- Combat
 ---------------------------------------------------------------------------
 Config.Combat = {

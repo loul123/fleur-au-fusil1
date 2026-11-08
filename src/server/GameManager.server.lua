@@ -31,7 +31,7 @@ local remotesFolder = Instance.new("Folder")
 remotesFolder.Name = Config.RemotesFolderName
 
 local remotes = {}
-for _, name in { "FireRequest", "PetalFired", "HitConfirm", "HitTaken", "KillFeed", "GameState", "Scoreboard", "Announce", "MatchResults" } do
+for _, name in { "FireRequest", "PetalFired", "HitConfirm", "HitTaken", "KillFeed", "GameState", "Scoreboard", "Announce", "MatchResults", "MapVote" } do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotesFolder
@@ -55,7 +55,7 @@ for _, t in Config.Teams do
 	teamObjects[t.Name] = team
 end
 
-MapBuilder.Build()
+MapBuilder.Build(Config.MapSelection.StartMap)
 Players.RespawnTime = Config.Combat.RespawnTime
 
 ---------------------------------------------------------------------------
@@ -74,7 +74,14 @@ local state = {
 	EndsAt = 0, -- workspace:GetServerTimeNow() de fin de phase
 	TeamRoundHits = {},
 	RoundsWon = {}, -- [clé] = { Label = ..., Wins = n }
+	MapId = MapBuilder.GetCurrentMapId(),
+	MapName = "",
+	MapOptions = nil, -- { {Id, Name, Description}, ... } pendant le vote
+	MapVotes = {}, -- [MapId] = nombre de voix
 }
+local mapInfo = Config.GetMap(state.MapId)
+state.MapName = if mapInfo then mapInfo.Name else "Potager personnalisé"
+local playerVotes = {} -- [Player] = MapId
 local roundWinner = nil -- { Key, Label }
 
 local function broadcastState()
@@ -340,6 +347,88 @@ Players.PlayerRemoving:Connect(function(player)
 	task.defer(rebalanceBots)
 end)
 
+---------------------------------------------------------------------------
+-- Vote de carte
+---------------------------------------------------------------------------
+local function recountVotes()
+	local counts = {}
+	for player, mapId in playerVotes do
+		if player.Parent then
+			counts[mapId] = (counts[mapId] or 0) + 1
+		end
+	end
+	state.MapVotes = counts
+end
+
+remotes.MapVote.OnServerEvent:Connect(function(player, mapId)
+	if state.Phase ~= "Intermission" or not state.MapOptions or typeof(mapId) ~= "string" then
+		return
+	end
+	for _, option in state.MapOptions do
+		if option.Id == mapId then
+			playerVotes[player] = mapId
+			recountVotes()
+			broadcastState()
+			return
+		end
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	playerVotes[player] = nil
+end)
+
+local mapRotationIndex = 0
+
+local function pickMapOptions()
+	local pool = {}
+	for _, m in Config.Maps do
+		if m.Id ~= state.MapId then
+			table.insert(pool, m)
+		end
+	end
+	for i = #pool, 2, -1 do
+		local j = math.random(1, i)
+		pool[i], pool[j] = pool[j], pool[i]
+	end
+	local options = {}
+	for i = 1, math.min(Config.MapSelection.Choices, #pool) do
+		local m = pool[i]
+		table.insert(options, { Id = m.Id, Name = m.Name, Description = m.Description })
+	end
+	return options
+end
+
+local function chooseNextMap()
+	local selection = Config.MapSelection.Mode
+	if selection == "Rotation" then
+		mapRotationIndex = mapRotationIndex % #Config.Maps + 1
+		return Config.Maps[mapRotationIndex].Id
+	elseif selection == "Random" or not state.MapOptions or #state.MapOptions == 0 then
+		local pool = state.MapOptions or Config.Maps
+		return pool[math.random(1, #pool)].Id
+	end
+	-- Vote : le plus de voix gagne, égalité tirée au sort
+	local best, bestVotes = {}, -1
+	for _, option in state.MapOptions do
+		local v = state.MapVotes[option.Id] or 0
+		if v > bestVotes then
+			best, bestVotes = { option.Id }, v
+		elseif v == bestVotes then
+			table.insert(best, option.Id)
+		end
+	end
+	return best[math.random(1, #best)]
+end
+
+local function loadMap(mapId)
+	local loaded = MapBuilder.Build(mapId)
+	MapBuilder.ConfigureSpawns(currentMode.Teams)
+	local info = Config.GetMap(loaded)
+	state.MapId = loaded
+	state.MapName = if info then info.Name else "Potager personnalisé"
+end
+
 local function isFiniteVector(v)
 	return v.X == v.X and v.Y == v.Y and v.Z == v.Z and math.abs(v.X) < 1e6 and math.abs(v.Y) < 1e6 and math.abs(v.Z) < 1e6
 end
@@ -497,9 +586,20 @@ local function runMatch(modeKey)
 		setTier(p, Config.DefaultTier)
 	end
 
+	-- Intermission : vote de la prochaine carte
+	table.clear(playerVotes)
+	state.MapVotes = {}
+	state.MapOptions = if MapBuilder.IsGenerated() and Config.MapSelection.Mode == "Vote" then pickMapOptions() else nil
 	announce("Prochaine partie : " .. currentMode.DisplayName, 5)
 	setPhase("Intermission", Config.IntermissionTime)
 	task.wait(Config.IntermissionTime)
+
+	if MapBuilder.IsGenerated() then
+		loadMap(chooseNextMap())
+	end
+	state.MapOptions = nil
+	table.clear(playerVotes)
+	broadcastState()
 
 	local winsNeeded = math.floor(currentMode.Rounds / 2) + 1
 	for round = 1, currentMode.Rounds do
@@ -518,7 +618,7 @@ local function runMatch(modeKey)
 
 		CombatService.Enabled = true
 		BotService.SetActive(true)
-		announce(if currentMode.Rounds > 1 then ("Manche " .. round .. " — À vos fleurs !") else "À vos fleurs !", 3)
+		announce((if currentMode.Rounds > 1 then ("Manche " .. round .. " — ") else "") .. state.MapName .. " — À vos fleurs !", 3)
 		setPhase("Round", currentMode.RoundTime)
 
 		local deadline = os.clock() + currentMode.RoundTime

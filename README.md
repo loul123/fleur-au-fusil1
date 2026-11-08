@@ -1,6 +1,6 @@
 # 🌼 La fleur au fusil
 
-Jeu de tir multijoueur Roblox (avec bots) dans un **potager géant** : des personnages minuscules s'affrontent entre carottes, laitues, plants de tomates, citrouilles, pots de fleurs et un arrosoir géant, armés d'un fusil avec une fleur au bout qui tire des **pétales**.
+Jeu de tir multijoueur Roblox (avec bots) dans **11 potagers géants** (vote de carte entre les parties) : des personnages minuscules s'affrontent entre carottes, laitues, plants de tomates, citrouilles, pots de fleurs et un arrosoir géant, armés d'un fusil avec une fleur au bout qui tire des **pétales**.
 
 ## Contenu
 
@@ -12,7 +12,7 @@ src/shared/   (ReplicatedStorage > FleurShared)
 src/server/   (ServerScriptService > FleurServer)
   GameManager.server.lua  Script    – boucle de jeu, modes, manches, joueurs, remotes
   Modules/
-    MapBuilder.lua        ModuleScript – génère le potager géant + spawns
+    MapBuilder.lua        ModuleScript – génère les 11 potagers (thèmes) + spawns
     ParticipantService.lua ModuleScript – joueurs/bots, touches, pénalités, score
     CombatService.lua     ModuleScript – tirs, cadence, projectiles, dégâts (autorité serveur)
     WeaponFactory.lua     ModuleScript – construit l'arme « FleurAuFusil »
@@ -98,6 +98,31 @@ Une jauge de vitalité (100) s'ajoute : un personnage dont la vitalité tombe à
 3. **Gun Game : premier à 200 touches** : la fleur évolue toutes les 25 touches (8 paliers), le premier à 200 touches gagne.
 
 Un écran de résultats affiche à la fin le vainqueur, le MVP et pour chacun touches / reçues / ratio / score final.
+
+## Cartes : 10 potagers + 1 « multi »
+
+| Id | Carte | Légumes | Monument central | Ambiance |
+|---|---|---|---|---|
+| `Tomates` | Le Rang des Tomates | plants de tomates sur tuteurs | arrosoir géant | midi |
+| `Ail` | Le Champ d'Ail | têtes d'ail et longues tiges | brouette géante | matin |
+| `Carottes` | Le Carré de Carottes | carottes aux grandes fanes | nain de jardin | midi |
+| `Citrouilles` | Le Champ de Citrouilles | citrouilles énormes | épouvantail | crépuscule orangé |
+| `Salades` | Le Jardin des Salades | laitues et radis | arrosoir géant | ciel couvert |
+| `Fraises` | Le Fraisier | fraisiers sur rangs de paille | brouette géante | après-midi |
+| `Mais` | Le Labyrinthe de Maïs | maïs de 70 à 95 studs, rangs serrés avec passages | épouvantail | fin d'après-midi |
+| `Choux` | Le Potager de Choux | choux verts et rouges | nain de jardin | brume du matin |
+| `Piments` | Le Coin des Piments | poivrons et piments | arrosoir géant | plein soleil |
+| `Tournesols` | Le Champ de Tournesols | tournesols géants | nain de jardin | soleil couchant |
+| `Multi` | Le Grand Potager | chaque rang a un légume différent (les 10) | arrosoir géant + tous les décors | midi |
+
+Toutes les cartes gardent la même base (clôture, 9 rangs, spawns des deux camps et neutres) pour rester équilibrées. Seuls les légumes, leur densité, le sol, les décors, les paquets de graines et la lumière changent.
+
+**Choix de la carte** (`Config.MapSelection`) :
+- `Mode = "Vote"` (par défaut) : pendant l'intermission, 3 cartes au hasard (hors carte actuelle) sont proposées en bas de l'écran ; chaque joueur clique pour voter. La carte qui a le plus de voix l'emporte, une égalité est tirée au sort.
+- `"Rotation"` : les cartes s'enchaînent dans l'ordre de `Config.Maps`. `"Random"` : une carte au hasard.
+- `StartMap` : carte chargée au démarrage du serveur (`"Multi"` par défaut).
+
+Pour ajouter une carte : ajoutez une entrée dans `Config.Maps` et un thème du même Id dans la table `THEMES` de `MapBuilder.lua`.
 
 ## Bots
 - Ils complètent la partie jusqu'à **6 combattants** (`Config.Bots.FillTo`) : seul sur le serveur, vous avez 5 adversaires ; un bot part chaque fois qu'un joueur arrive.

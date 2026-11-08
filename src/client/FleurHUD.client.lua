@@ -116,6 +116,62 @@ label({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), 
 	TextColor3 = Color3.fromRGB(190, 210, 180) }, results)
 
 ---------------------------------------------------------------------------
+-- Vote de carte (pendant l'intermission)
+---------------------------------------------------------------------------
+local votePanel = panel({ AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -20), Size = UDim2.fromOffset(660, 150), Visible = false }, gui)
+label({ Size = UDim2.new(1, -20, 0, 26), Position = UDim2.fromOffset(10, 6), Text = "Votez pour le prochain potager !" }, votePanel)
+local voteList = make("Frame", { Position = UDim2.fromOffset(10, 38), Size = UDim2.new(1, -20, 1, -48), BackgroundTransparency = 1 }, votePanel)
+make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 10), HorizontalAlignment = Enum.HorizontalAlignment.Center }, voteList)
+local voteButtons = {} -- [MapId] = { Button, Votes }
+local myVote = nil
+local voteKey = ""
+
+local function renderVote()
+	local options = state.MapOptions
+	votePanel.Visible = state.Phase == "Intermission" and options ~= nil and #options > 0
+	if not votePanel.Visible then
+		myVote = nil
+		return
+	end
+	local key = ""
+	for _, o in options do
+		key ..= o.Id .. ";"
+	end
+	if key ~= voteKey then -- nouvelles propositions : on reconstruit les boutons
+		voteKey = key
+		myVote = nil
+		for _, b in voteButtons do
+			b.Button:Destroy()
+		end
+		table.clear(voteButtons)
+		local width = math.floor((640 - 10 * (#options - 1)) / #options)
+		for i, o in options do
+			local button = make("TextButton", { Size = UDim2.new(0, width, 1, 0), LayoutOrder = i, Text = "", AutoButtonColor = true,
+				BackgroundColor3 = Color3.fromRGB(80, 120, 60), BorderSizePixel = 0 }, voteList)
+			make("UICorner", { CornerRadius = UDim.new(0, 8) }, button)
+			local stroke = make("UIStroke", { Thickness = 0, Color = Color3.fromRGB(255, 235, 120), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, button)
+			label({ Size = UDim2.new(1, -10, 0, 26), Position = UDim2.fromOffset(5, 4), Text = o.Name }, button)
+			local desc = label({ Size = UDim2.new(1, -10, 0, 40), Position = UDim2.fromOffset(5, 32), Text = o.Description, TextScaled = false,
+				TextSize = 14, TextWrapped = true, TextColor3 = Color3.fromRGB(220, 235, 210) }, button)
+			desc.TextYAlignment = Enum.TextYAlignment.Top
+			local votes = label({ Size = UDim2.new(1, -10, 0, 20), Position = UDim2.new(0, 5, 1, -24), Text = "0 voix", TextColor3 = Color3.fromRGB(255, 235, 120) }, button)
+			button.Activated:Connect(function()
+				myVote = o.Id
+				remotes.MapVote:FireServer(o.Id)
+				renderVote()
+			end)
+			voteButtons[o.Id] = { Button = button, Votes = votes, Stroke = stroke }
+		end
+	end
+	local counts = state.MapVotes or {}
+	for id, b in voteButtons do
+		local n = counts[id] or 0
+		b.Votes.Text = n .. " voix"
+		b.Stroke.Thickness = if myVote == id then 3 else 0
+	end
+end
+
+---------------------------------------------------------------------------
 -- Rendu
 ---------------------------------------------------------------------------
 local function formatTime(seconds)
@@ -201,7 +257,12 @@ local function renderBoard()
 end
 
 local function renderAll()
-	modeLabel.Text = if state.ModeName ~= "" then state.ModeName else "La fleur au fusil"
+	local title = if state.ModeName ~= "" then state.ModeName else "La fleur au fusil"
+	if state.MapName and state.MapName ~= "" and state.Phase ~= "Intermission" then
+		title ..= " — " .. state.MapName
+	end
+	modeLabel.Text = title
+	renderVote()
 	objectiveLabel.Text = state.Objective or ""
 	renderTeams()
 	renderStats()
