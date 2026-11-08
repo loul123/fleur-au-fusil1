@@ -1,0 +1,17 @@
+{
+  "name": "la-fleur-au-fusil",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "FleurShared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "FleurServer": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "FleurClient": { "$path": "src/client" }
+      }
+    }
+  }
+}
