@@ -27,6 +27,15 @@ src/client/   (StarterPlayer > StarterPlayerScripts > FleurClient)
 
 L'arme, la carte, les équipes et les RemoteEvents sont **créés par code** : aucun modèle à importer.
 
+## Installation la plus simple : ouvrir la place toute prête
+
+1. Téléchargez **`LaFleurAuFusil.rbxlx`** (à la racine du dépôt).
+2. Double-cliquez dessus, ou dans Roblox Studio : *File › Open from File…*.
+3. Appuyez sur **Play** (F5) : le potager, l'arme, les bots, le HUD et le pass sont générés au lancement.
+4. Pour publier : *File › Publish to Roblox*. Ensuite, réglez le Game Pass, les Developer Products et l'accès aux API (voir plus bas).
+
+Tous les scripts sont déjà rangés au bon endroit et les avatars sont réglés en R15. Après une modification de `src/`, régénérez la place avec `python3 tools/build_place.py`.
+
 ## Installation dans Roblox Studio (copier-coller)
 
 1. Créez une place (template **Baseplate** ou **Flat Terrain**). Le Baseplate et la SpawnLocation par défaut sont supprimés automatiquement.
